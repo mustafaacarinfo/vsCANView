@@ -1,0 +1,71 @@
+# ─────────────────────────────
+# Build trees
+# ─────────────────────────────
+build*/
+conf/CAN_DATABASE.dbc
+
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json        # clangd/IDE output
+
+# Ninja
+.ninja_deps
+.ninja_log
+
+# External libs downloaded locally
+/boost_*/
+/paho.mqtt.c
+
+# Windows MOTW / ADS
+*:[Zz]one.Identifier
+
+# ─────────────────────────────
+# Generated binaries & objects
+# ─────────────────────────────
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+*.deb
+*.rpm
+
+# ─────────────────────────────
+# Test coverage / profiling
+# ─────────────────────────────
+*.gcda
+*.gcno
+*.gcov
+coverage/
+
+# ─────────────────────────────
+# Editor / IDE miscellany
+# ─────────────────────────────
+.vscode/
+.idea/
+*.code-workspace
+*.sw?
+*~
+
+# ─────────────────────────────
+# OS-specific cruft
+# ─────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─────────────────────────────
+# Third-party sub-projects
+# (keeps source, skips their
+# own build artifacts)
+# ─────────────────────────────
+third_party/*/build/
+third_party/*/bin/
+third_party/*/lib/
+/build/
+/boost_*/

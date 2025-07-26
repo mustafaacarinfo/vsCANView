@@ -14,19 +14,21 @@ namespace canmqtt::bus {
 
 class SocketCanChannel : public ICanChannel {
     public:
-        SocketCanChannel()  = default;
+        SocketCanChannel(const SocketCanChannel&)            = delete; // non-copyable
+        SocketCanChannel& operator=(const SocketCanChannel&) = delete; // non-copyable
+        SocketCanChannel(SocketCanChannel&&) noexcept            = default; // movable
+        SocketCanChannel& operator=(SocketCanChannel&&) noexcept = default; // movable
+
         ~SocketCanChannel() override { close(); }
 
+        static SocketCanChannel& getInstance();
         bool open(std::string_view ifname, bool fd_mode = false) override;
         bool read(Frame& out) override;
         void close() override;
-        void setCallback(std::function<void(const Frame&)> cb);
-        void startListening();
-
+        void startProcessingData();         
     private:
+        SocketCanChannel()  = default;
         int fd_ = -1;
-        std::function<void(const Frame&)> m_messageCallback;
-
     };
 }
 

@@ -6,10 +6,15 @@
 #include <vector>
 #include <cstdint>
 
-namespace dbc {
+namespace canmqtt::dbc {
 
 class DbcDatabase {
 public:
+    ~DbcDatabase() = default;
+    DbcDatabase(DbcDatabase&&) = default; // movable
+    DbcDatabase& operator=(const DbcDatabase&) = delete; // non-copyable
+    DbcDatabase& operator=(DbcDatabase&&) = default; // movable
+
     bool load(const std::string& dbc_file);
 
     /// id’li mesajı çözüp (isim-değer) tablosu döndürür
@@ -19,7 +24,10 @@ public:
 
     std::string getMessageNameById(uint32_t id) const;
 
+    static DbcDatabase& getInstance();
+
 private:
+    DbcDatabase() = default;
     std::unique_ptr<dbcppp::INetwork> db_;
 };
 

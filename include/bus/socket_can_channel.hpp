@@ -9,10 +9,11 @@
 #include <unistd.h>
 #include <cstring>
 #include <functional>
+#include <absl/base/no_destructor.h>  
 
 namespace canmqtt::bus {
 
-class SocketCanChannel : public ICanChannel {
+class SocketCanChannel final: public ICanChannel {
     public:
         SocketCanChannel(const SocketCanChannel&)            = delete; // non-copyable
         SocketCanChannel& operator=(const SocketCanChannel&) = delete; // non-copyable
@@ -27,6 +28,7 @@ class SocketCanChannel : public ICanChannel {
         void close() override;
         void startProcessingData();         
     private:
+        friend class absl::NoDestructor<SocketCanChannel>;
         SocketCanChannel()  = default;
         int fd_ = -1;
     };

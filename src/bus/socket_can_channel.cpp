@@ -12,12 +12,14 @@
 #include <iostream>
 #include <sstream>
 #include <climits>
+#include <absl/base/no_destructor.h>  
 
 namespace canmqtt::bus {
 
 SocketCanChannel& SocketCanChannel::getInstance(){
-    static SocketCanChannel instance;
-    return instance;
+    static absl::NoDestructor<SocketCanChannel> instance;
+
+    return *instance;
 }
 
 bool SocketCanChannel::open(std::string_view ifname, bool /*fd_mode*/) {

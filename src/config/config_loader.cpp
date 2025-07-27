@@ -3,13 +3,14 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <absl/base/no_destructor.h>  
 
 using namespace std;
 namespace canmqtt::config {
 
 ConfigLoader& ConfigLoader::Instance() {
-  static ConfigLoader inst;
-  return inst;
+  static absl::NoDestructor<ConfigLoader> instance;
+  return *instance;
 }
 
 bool ConfigLoader::Load(const std::string& path) {

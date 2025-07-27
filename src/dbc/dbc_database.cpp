@@ -2,14 +2,15 @@
 #include <fstream>
 #include <iostream>
 #include <cstring>
+#include <absl/base/no_destructor.h>  
 
 namespace canmqtt::dbc {
 
 DbcDatabase& DbcDatabase::getInstance()
 {
-    static DbcDatabase instance;
+    static absl::NoDestructor<DbcDatabase> instance;
    
-    return instance;
+    return *instance;
 }
 
 /* ───── load ───── */

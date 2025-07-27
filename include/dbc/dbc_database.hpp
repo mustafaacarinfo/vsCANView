@@ -5,6 +5,7 @@
 #include <map>
 #include <vector>
 #include <cstdint>
+#include <absl/base/no_destructor.h>  
 
 namespace canmqtt::dbc {
 
@@ -28,6 +29,7 @@ public:
 
 private:
     DbcDatabase() = default;
+    friend class absl::NoDestructor<DbcDatabase>;
     std::unique_ptr<dbcppp::INetwork> db_;
 };
 

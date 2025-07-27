@@ -2,6 +2,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <absl/base/no_destructor.h>  
 
 namespace canmqtt::config{
 
@@ -21,6 +22,7 @@ class ConfigLoader {
  private:
   ConfigLoader() = default;
   std::unordered_map<std::string, std::unordered_map<std::string, std::string>> table_;
+  friend class absl::NoDestructor<ConfigLoader>;
 
 
 };

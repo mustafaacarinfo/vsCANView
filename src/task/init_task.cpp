@@ -10,7 +10,7 @@ std::string stringdbc;
 namespace canmqtt::task {
 void Init() {
 
-  auto& cfg = canmqtt::config::ConfigLoader::Instance();
+  auto& cfg = canmqtt::config::ConfigLoader::getInstance();
   cfg.Load("../conf/config.ini");
 
   auto& db = canmqtt::dbc::DbcDatabase::getInstance();

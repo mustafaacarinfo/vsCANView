@@ -34,7 +34,8 @@ find_package(Curses REQUIRED)
 # ────────────────── Üçüncü taraf alt modüller ──────────────────
 add_definitions(-DBOOST_SPIRIT_X3_NO_CONTAINER_TRAITS -DBOOST_SPIRIT_X3_NO_FUSION)
 add_subdirectory(third_party/dbcppp EXCLUDE_FROM_ALL)
-add_subdirectory(third_party/abseil)            # absl::base hedefini üretir
+add_subdirectory(third_party/abseil)           
+add_subdirectory(third_party/json)            
 
 # ────────────────── Uygulama hedefi ──────────────────
 add_executable(vsCANView ${SOURCES})
@@ -50,5 +51,6 @@ target_link_libraries(vsCANView PRIVATE
   dbcppp
   pthread
   ${CURSES_LIBRARIES}
-  absl::base                # ← artık exe tanımlandıktan SONRA listede
+  absl::base
+  nlohmann_json::nlohmann_json
 )

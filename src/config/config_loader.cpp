@@ -8,7 +8,7 @@
 using namespace std;
 namespace canmqtt::config {
 
-ConfigLoader& ConfigLoader::Instance() {
+ConfigLoader& ConfigLoader::getInstance() {
   static absl::NoDestructor<ConfigLoader> instance;
   return *instance;
 }

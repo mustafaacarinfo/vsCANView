@@ -11,7 +11,7 @@ namespace canmqtt::task {
 void StartDisplay() {
   using namespace std::chrono_literals;
   int interval_ms = std::stoi(
-                              canmqtt::config::ConfigLoader::Instance().Get("os",
+                              canmqtt::config::ConfigLoader::getInstance().Get("os",
                                                                             "display_task_interval_ms",
                                                                             ""));
   std::jthread{[interval_ms] {

@@ -1,50 +1,65 @@
 #include "task/listener_task.hpp"
+#include "config/config_loader.hpp"
 #include "dbc/dbc_database.hpp"
 #include "bus/socket_can_channel.hpp"
 
+#include <nlohmann/json.hpp>
 #include <iostream>
+#include <iomanip>
+#include <sstream>
+#include <chrono>
 #include <thread>
 
-using namespace std;
-using canmqtt::bus::SocketCanChannel;
+using json = nlohmann::json;
 using canmqtt::bus::Frame;
+namespace cfg = canmqtt::config;
+namespace dbc = canmqtt::dbc;
+namespace bus = canmqtt::bus;
 
 namespace canmqtt::task {
 
-void StartListener() {
-  std::jthread{[] {
+void StartListener()
+{
+    // ---- yardımcı --------------------------------------------------------
+    auto to_hex = [](const uint8_t* d, size_t len)
+    {
+        std::ostringstream oss;
+        oss << std::uppercase << std::hex << std::setfill('0');
+        for (size_t i = 0; i < len; ++i)
+        {
+            oss << std::setw(2) << int(d[i]);
+            if (i + 1 < len) oss << ' ';
+        }
+        return oss.str();
+    };
 
-    SocketCanChannel &ch = SocketCanChannel::getInstance();
-    Frame frame;
-    int i =0 ;
-    while (ch.read(frame)) {
-      cout << endl << "Received CAN frame: ID = " << frame.id << endl;
-      cout << "Received CAN frame: Data = ";
-      for (const auto& byte : frame.data) {
-        cout << std::hex << static_cast<int>(byte) << " " << std::uppercase; 
-      }
-      cout << endl << "Timestamp: " << frame.ts.count() << " microseconds" << endl;
-      cout << "Message Name: " << canmqtt::dbc::DbcDatabase::getInstance().getMessageNameById(frame.id) << endl;
-      cout << "----------------------------------------" << endl;
+    auto& cl = cfg::ConfigLoader::getInstance();
+    auto& db = dbc::DbcDatabase::getInstance();
+    auto& ch = bus::SocketCanChannel::getInstance();
 
-      i = (i + 1) % frame.data.size();
+    std::jthread{[&, to_hex]
+    {
+        Frame frame;
+        json  j_canFrame;
 
-      uint32_t plain = (frame.id & CAN_EFF_FLAG)
-                  ? (frame.id & CAN_EFF_MASK)
-                  : (frame.id & CAN_SFF_MASK);
+        while (ch.read(frame))
+        {            
+           j_canFrame["ts"]  = std::chrono::duration_cast<std::chrono::microseconds>(frame.ts).count();
+           j_canFrame["bus"] = cl.Get("can", "channel", "");
+           j_canFrame["id"]  = frame.id;
+           j_canFrame["dlc"] = static_cast<int>(frame.data.size());
+           j_canFrame["raw"] = to_hex(frame.data.data(), frame.data.size());
 
-      std::map<std::string,double> decoded_data;
-      canmqtt::dbc::DbcDatabase::getInstance().decode(plain, frame.data,decoded_data);
-      cout << "Signals: ";
-      for (const auto& sig : decoded_data) {
-        cout << sig.first << ": " << sig.second << ", ";
-      }
-      cout << endl;
-      
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-  }}.detach();
+           j_canFrame["name"] = db.getMessageNameById(frame.id);
 
+            std::map<std::string,double> sigmap;
+            if (db.decode(frame.id, frame.data, sigmap))
+            j_canFrame["signals"] = sigmap;
+
+            std::cout << j_canFrame.dump(2) << '\n';
+        }
+
+    }}.detach();
 }
 
-}  // namespace task
+} // namespace canmqtt::task

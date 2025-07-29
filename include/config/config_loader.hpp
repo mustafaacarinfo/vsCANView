@@ -8,7 +8,7 @@ namespace canmqtt::config{
 
 class ConfigLoader {
  public:
-  static ConfigLoader& Instance();
+  static ConfigLoader& getInstance();
 
   bool Load(const std::string& path);
 

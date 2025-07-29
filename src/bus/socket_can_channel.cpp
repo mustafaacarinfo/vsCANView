@@ -58,8 +58,7 @@ bool SocketCanChannel::read(Frame& out) {
 
     // Data ve timestamp
     out.data.assign(raw_frame.data, raw_frame.data + raw_frame.can_dlc);
-    out.ts = std::chrono::duration_cast<std::chrono::microseconds>(
-                std::chrono::steady_clock::now().time_since_epoch());
+    out.ts = std::chrono::duration_cast<std::chrono::microseconds>( std::chrono::steady_clock::now().time_since_epoch());
 
     return true;
 }

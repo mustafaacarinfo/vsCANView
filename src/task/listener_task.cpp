@@ -1,7 +1,9 @@
 #include "task/listener_task.hpp"
-#include "config/config_loader.hpp"
 #include "dbc/dbc_database.hpp"
 #include "bus/socket_can_channel.hpp"
+#include "mqtt/mqtt_publisher.hpp"
+#include "config/config_loader.hpp"
+#include "util/util.hpp"
 
 #include <nlohmann/json.hpp>
 #include <iostream>
@@ -9,57 +11,47 @@
 #include <sstream>
 #include <chrono>
 #include <thread>
+#include <fmt/core.h>         
 
-using json = nlohmann::json;
 using canmqtt::bus::Frame;
+using json = nlohmann::json;
+
 namespace cfg = canmqtt::config;
 namespace dbc = canmqtt::dbc;
 namespace bus = canmqtt::bus;
+namespace mqtt = canmqtt::mqtt;
+namespace build_json = canmqtt::util::json;
 
-namespace canmqtt::task {
-
-void StartListener()
+namespace canmqtt::task
 {
-    // ---- yardımcı --------------------------------------------------------
-    auto to_hex = [](const uint8_t* d, size_t len)
-    {
-        std::ostringstream oss;
-        oss << std::uppercase << std::hex << std::setfill('0');
-        for (size_t i = 0; i < len; ++i)
-        {
-            oss << std::setw(2) << int(d[i]);
-            if (i + 1 < len) oss << ' ';
-        }
-        return oss.str();
-    };
 
-    auto& cl = cfg::ConfigLoader::getInstance();
-    auto& db = dbc::DbcDatabase::getInstance();
-    auto& ch = bus::SocketCanChannel::getInstance();
+  void StartListener()
+  {
+    auto &cl = cfg::ConfigLoader::getInstance();
+    auto &db = dbc::DbcDatabase::getInstance();
+    auto &ch = bus::SocketCanChannel::getInstance();
+    auto &mqtt_pub = mqtt::Publisher::getInstance();
 
-    std::jthread{[&, to_hex]
-    {
-        Frame frame;
-        json  j_canFrame;
+    std::jthread{
+        [&]{
+          Frame frame;
+          json j_canFrame;
 
-        while (ch.read(frame))
-        {            
-           j_canFrame["ts"]  = std::chrono::duration_cast<std::chrono::microseconds>(frame.ts).count();
-           j_canFrame["bus"] = cl.Get("can", "channel", "");
-           j_canFrame["id"]  = frame.id;
-           j_canFrame["dlc"] = static_cast<int>(frame.data.size());
-           j_canFrame["raw"] = to_hex(frame.data.data(), frame.data.size());
+          while (ch.read(frame))
+          {
+            if(build_json::BuildJson(j_canFrame,frame,cl,db) == false)
+            {
+              std::cerr << "Failed to build JSON for CAN frame with ID: " << frame.id << '\n';
+              continue;
+            }
+            
+            std::string bus = cl.Get("can", "channel", "");
+            std::string topic = fmt::format("can/{}/{:06X}", bus, frame.id);
 
-           j_canFrame["name"] = db.getMessageNameById(frame.id);
-
-            std::map<std::string,double> sigmap;
-            if (db.decode(frame.id, frame.data, sigmap))
-            j_canFrame["signals"] = sigmap;
-
-            std::cout << j_canFrame.dump(2) << '\n';
-        }
-
-    }}.detach();
-}
+            mqtt_pub.Publish(topic, j_canFrame.dump(2), 1/*td::stoi(cl.Get("mqtt", "qos", ""),nullptr, 16)*/);
+          }
+        }}
+        .detach();
+  }
 
 } // namespace canmqtt::task

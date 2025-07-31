@@ -7,3 +7,9 @@
 [submodule "third_party/json"]
 	path = third_party/json
 	url = https://github.com/nlohmann/json.git
+[submodule "third_party/paho-mqtt-c"]
+	path = third_party/paho-mqtt-c
+	url = https://github.com/eclipse/paho.mqtt.c.git
+[submodule "third_party/fmt"]
+	path = third_party/fmt
+	url = https://github.com/fmtlib/fmt.git

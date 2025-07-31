@@ -36,6 +36,10 @@ add_definitions(-DBOOST_SPIRIT_X3_NO_CONTAINER_TRAITS -DBOOST_SPIRIT_X3_NO_FUSIO
 add_subdirectory(third_party/dbcppp EXCLUDE_FROM_ALL)
 add_subdirectory(third_party/abseil)           
 add_subdirectory(third_party/json)            
+option(PAHO_WITH_SSL "Enable TLS support" OFF)
+add_subdirectory(third_party/paho-mqtt-c EXCLUDE_FROM_ALL)
+add_subdirectory(third_party/fmt EXCLUDE_FROM_ALL)
+
 
 # ────────────────── Uygulama hedefi ──────────────────
 add_executable(vsCANView ${SOURCES})
@@ -44,6 +48,8 @@ target_include_directories(vsCANView PRIVATE
   ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_SOURCE_DIR}/third_party/dbcppp/src
   ${CURSES_INCLUDE_DIR}
+  ${CMAKE_SOURCE_DIR}/third_party/paho-mqtt-c/src
+
 )
 
 target_link_libraries(vsCANView PRIVATE
@@ -53,4 +59,6 @@ target_link_libraries(vsCANView PRIVATE
   ${CURSES_LIBRARIES}
   absl::base
   nlohmann_json::nlohmann_json
+  paho-mqtt3c
+  fmt::fmt
 )

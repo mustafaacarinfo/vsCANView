@@ -8,6 +8,12 @@ namespace canmqtt::config{
 
 class ConfigLoader {
  public:
+  ConfigLoader(const ConfigLoader&) = delete; // non-copyable
+  ConfigLoader& operator=(const ConfigLoader&) = delete; // non-copyable
+  ConfigLoader(ConfigLoader&&) = default; // movable
+  ConfigLoader& operator=(ConfigLoader&&) = default; // movable
+  ~ConfigLoader() = default;
+  
   static ConfigLoader& getInstance();
 
   bool Load(const std::string& path);

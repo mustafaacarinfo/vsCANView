@@ -1,3 +1,5 @@
+#pragma once
+
 #include <nlohmann/json.hpp>
 #include "bus/socket_can_channel.hpp"
 #include "dbc/dbc_database.hpp"
@@ -8,7 +10,7 @@
 #include <sstream>
 #include <chrono>
 
-using json = nlohmann::json;
+using canmqtt_json = nlohmann::json;
 using namespace canmqtt::bus;
 
 namespace canmqtt::util::json
@@ -26,7 +28,7 @@ namespace canmqtt::util::json
       return oss.str();
     };
 
-    bool BuildJson(nlohmann::json  &j_canFrame, Frame &frame, auto &cl, auto &db)
+    bool BuildJson(canmqtt_json  &j_canFrame, Frame &frame, auto &cl, auto &db)
     {
         j_canFrame["ts"] = std::chrono::duration_cast<std::chrono::microseconds>(frame.ts).count();
         j_canFrame["bus"] = cl.Get("can", "channel", "");

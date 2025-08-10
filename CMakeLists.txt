@@ -29,7 +29,6 @@ file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
 # ────────────────── Haricî kütüphaneler ──────────────────
 find_package(PkgConfig REQUIRED)
 pkg_search_module(SOCKETCAN REQUIRED libsocketcan)
-find_package(Curses REQUIRED)
 
 # ────────────────── Üçüncü taraf alt modüller ──────────────────
 add_definitions(-DBOOST_SPIRIT_X3_NO_CONTAINER_TRAITS -DBOOST_SPIRIT_X3_NO_FUSION)
@@ -47,16 +46,13 @@ add_executable(vsCANView ${SOURCES})
 target_include_directories(vsCANView PRIVATE
   ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_SOURCE_DIR}/third_party/dbcppp/src
-  ${CURSES_INCLUDE_DIR}
   ${CMAKE_SOURCE_DIR}/third_party/paho-mqtt-c/src
-
 )
 
 target_link_libraries(vsCANView PRIVATE
   ${SOCKETCAN_LIBRARIES}
   dbcppp
   pthread
-  ${CURSES_LIBRARIES}
   absl::base
   nlohmann_json::nlohmann_json
   paho-mqtt3c

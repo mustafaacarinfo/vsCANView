@@ -1,0 +1,59 @@
+{
+  "name": "can-debugger-3d-full-glb-path-v2",
+  "displayName": "CAN Debugger (Full + 3D GLB path, v2)",
+  "description": "Fixes 'mul is not defined' and includes the full dashboard + GLB path loader.",
+  "version": "0.4.1",
+  "publisher": "your-name",
+  "engines": {
+    "vscode": "^1.84.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:canDebugger.open"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "canDebugger.open",
+        "title": "CAN Debugger: Open Full Dashboard (GLB path, v2)"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "CAN Debugger",
+      "properties": {
+        "canDebugger.modelPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to vehicle .glb (e.g. C:\\\\models\\\\vehicle.glb)"
+        },
+        "canDebugger.brokerUrl": {
+          "type": "string",
+          "default": "mqtt://localhost:1883"
+        },
+        "canDebugger.topic": {
+          "type": "string",
+          "default": "can/#"
+        },
+        "canDebugger.username": {
+          "type": "string",
+          "default": ""
+        },
+        "canDebugger.password": {
+          "type": "string",
+          "default": ""
+        },
+        "canDebugger.clientId": {
+          "type": "string",
+          "default": "vscode-can-3d-full"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "mqtt": "^4.3.7"
+  }
+}

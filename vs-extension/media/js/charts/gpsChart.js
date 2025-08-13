@@ -1,6 +1,7 @@
 import { ctx2d } from '../core/chartCore.js';
 export class GpsChart { constructor(c){ this.canvas=c; this.ctx=ctx2d(c); this.points=[]; window.addEventListener('resize',()=>this.ctx=ctx2d(this.canvas)); }
   setPoints(p){ this.points=p||[]; this.draw(); }
+  clearData(){ this.points=[]; this.draw(); }
   draw(){ this.ctx=ctx2d(this.canvas); const el=this.canvas, ctx=this.ctx; const r=el.getBoundingClientRect(); const W=r.width,H=r.height,pad=20;
     ctx.clearRect(0,0,W,H); if(!this.points.length){ ctx.fillStyle='#b7c0cd'; ctx.fillText('GPS verisi yok',10,18); return; }
     const lats=this.points.map(p=>p.lat), lons=this.points.map(p=>p.lon);

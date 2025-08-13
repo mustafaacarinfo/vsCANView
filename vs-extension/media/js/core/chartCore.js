@@ -27,6 +27,7 @@ export class LineChart {
     this._drawScheduled = false; // Çizim optimizasyonu için
     this._cached = {}; // Cacheleme için
     this._resizeTimeout = null;
+    this._defaultValue = 0; // Varsayılan başlangıç değeri
     
     // Resize olayını optimize et
     window.addEventListener('resize', () => {
@@ -48,6 +49,17 @@ export class LineChart {
     if(this.data.length > 20000) {
       this.data.splice(0, this.data.length - 10000); // Yarısını temizle
     }
+  }
+  
+  // Tüm veri noktalarını temizle
+  clearData() {
+    this.data = [];
+    // Varsayılan bir başlangıç değeri ekle (grafik boş kalmasın)
+    const now = Date.now() / 1000;
+    this.data.push({t: now-10, v: this._defaultValue});
+    this.data.push({t: now, v: this._defaultValue});
+    this.xmin = now-10;
+    this.xmax = now;
   }
   
   // Koordinat dönüşümlerini önbellekle
@@ -161,6 +173,19 @@ export class MultiLineChart {
   }
   setRange(a,b){ this.xmin=a; this.xmax=b; }
   push(i,t,v){ const s=this.series[i]; if(!s) return; s.data.push({t:+t,v:+v}); if(s.data.length>20000) s.data.splice(0,s.data.length-20000); }
+  
+  // Tüm veri serilerini temizle
+  clearData() {
+    const now = Date.now() / 1000;
+    this.series.forEach(s => {
+      s.data = [
+        {t: now-10, v: 0},
+        {t: now, v: 0}
+      ];
+    });
+    this.xmin = now-10;
+    this.xmax = now;
+  }
   draw(){
     this.ctx = ctx2d(this.c); const ctx=this.ctx, r=this.c.getBoundingClientRect(), W=r.width, H=r.height;
     ctx.clearRect(0,0,W,H);

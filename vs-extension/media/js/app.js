@@ -97,9 +97,38 @@ document.addEventListener('visibilitychange', () => {
 
 // Status counters
 let total = 0, tickCount=0, paused=false;
-const connDot = document.getElementById('connDot'); const connTxt = document.getElementById('connTxt');
-const mpsEl = document.getElementById('mps'); const totalEl = document.getElementById('total'); const lastTopicEl = document.getElementById('lastTopic');
-setInterval(()=>{ mpsEl.textContent = tickCount.toString(); tickCount=0; }, 1000);
+const mqttDot = document.getElementById('mqttDot');
+const canDot = document.getElementById('canDot');
+const connTxt = document.getElementById('connTxt');
+const mpsEl = document.getElementById('mps'); 
+const totalEl = document.getElementById('total'); 
+const lastTopicEl = document.getElementById('lastTopic');
+
+// MQTTve CAN bağlantı durumu izleme
+let lastCanMsgTime = 0;
+let mqttConnected = false;
+
+// Her saniye bağlantı durumunu güncelle
+setInterval(() => { 
+  mpsEl.textContent = tickCount.toString(); 
+  
+  // 5 saniyedir CAN mesajı gelmediyse CAN bağlantısı kesilmiş olabilir
+  const now = Date.now();
+  if (now - lastCanMsgTime > 5000) {
+    canDot.className = 'dot fail';
+  }
+  
+  // Bağlantı durumu metni
+  if (mqttConnected && (now - lastCanMsgTime < 5000)) {
+    connTxt.textContent = 'Bağlantı Kuruldu';
+  } else if (mqttConnected) {
+    connTxt.textContent = 'MQTT Bağlı, CAN Bekleniyor';
+  } else {
+    connTxt.textContent = 'Bağlantı Kesildi';
+  }
+  
+  tickCount = 0; 
+}, 1000);
 
 // Charts - lazy loading ve performance tracking eklenmiş
 const chartInitTime = performance.now();
@@ -114,6 +143,32 @@ const fuelGauge = new FuelGauge(document.getElementById('fuel'));
 const tGauges = new TemperatureGauges(document.getElementById('gCoolant'), document.getElementById('gOil'), document.getElementById('gExhaust'));
 
 console.log(`Tüm grafikler yüklendi - süre: ${(performance.now() - chartInitTime).toFixed(2)}ms`);
+
+// Grafikleri temizleme fonksiyonu
+function clearAllCharts() {
+  // Tüm grafiklerin veri noktalarını temizle
+  speed.clearData();
+  rpm.clearData();
+  gps.clearData();
+  pressure.clearData();
+  fuelRate.clearData();
+  
+  // Göstergeleri varsayılan değerlere ayarla
+  fuelGauge.setValue(50);
+  tGauges.clear();
+  
+  // Grafikleri yeniden çiz
+  speed.draw();
+  rpm.draw();
+  gps.draw();
+  pressure.draw(); 
+  fuelRate.draw();
+  fuelGauge.draw();
+  tGauges.draw();
+}
+
+// Temizleme butonuna tıklama işlevi ekle
+document.getElementById('clearCharts').addEventListener('click', clearAllCharts);
 
 // Grafiklerin ilk çizimini planla
 requestAnimationFrame(() => {
@@ -282,11 +337,20 @@ window.addEventListener('message', (ev) => {
     return;
   }
   
-  if(msg.type === 'conn'){ const ok = !!msg.ok; connDot.className='dot '+(ok?'ok':'fail'); connTxt.textContent = ok?'Connected':'Disconnected'; return; }
+  if(msg.type === 'conn'){ 
+    const ok = !!msg.ok; 
+    mqttDot.className = 'dot ' + (ok ? 'ok' : 'fail');
+    mqttConnected = ok;
+    return; 
+  }
   if(msg.type === 'can' && !paused){
     const { topic, payload } = msg;
     const t = (payload.t) ? +payload.t : now();
     total++; tickCount++; totalEl.textContent = total.toString(); lastTopicEl.textContent = topic;
+    
+    // CAN mesajı alındı, CAN bağlantısını güncelle
+    lastCanMsgTime = Date.now();
+    canDot.className = 'dot ok';
 
     // Aktif sekmeyi kontrol et
     const isActiveDashboard = document.getElementById('page-dash').classList.contains('active');

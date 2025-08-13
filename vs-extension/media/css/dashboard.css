@@ -1,0 +1,67 @@
+:root{ --bg:#0b0f14; --panel:#0e131a; --fg:#e5e7eb; --muted:#b7c0cd; --border:#1f2430;
+       --blue:#60a5fa; --green:#34d399; --amber:#f59e0b; --red:#ef4444; --violet:#a78bfa; }
+*{box-sizing:border-box} html,body{height:100%} body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 ui-sans-serif,system-ui}
+.nav{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;background:#0a0e13;border-bottom:1px solid var(--border);padding:8px 12px}
+.tabs{display:flex;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:#0a0e13}
+.tab{padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:#0f1520;color:var(--muted);cursor:pointer;user-select:none}
+.tab.active{background:#111827;color:var(--fg)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--border);background:#0a0e13}
+.chip{display:flex;gap:8px;align-items:center;background:#0f1520;border:1px solid var(--border);color:var(--muted);padding:6px 10px;border-radius:12px}
+.chip select,.chip input{background:#0b1220;border:1px solid #263041;color:#e8edf4;outline:none;border-radius:8px;padding:6px 28px 6px 10px;font-size:13px;appearance:none;position:relative}
+.chip select{background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="%23b7c0cd"><path d="M7 10l5 5 5-5z"/></svg>');background-repeat:no-repeat;background-position:right 8px center}
+.chip input{min-width:140px}
+.chip label{opacity:.9}
+.page{display:none} .page.active{display:block}
+
+.status{display:flex;gap:16px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);background:#0a0e13;color:var(--muted);font-size:12px}
+.badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px}
+.dot{width:8px;height:8px;border-radius:50%}
+.dot.ok{background:#16a34a}.dot.fail{background:#ef4444}.dot.warn{background:#f59e0b}
+
+.grid{padding:12px;display:grid;gap:12px;max-width:1600px;margin:0 auto;
+  grid-template-columns:1.6fr 1fr;
+  grid-template-areas:
+    "kpis  kpis"
+    "speed gauge"
+    "rpm   viewer"
+    "gps   temps"
+    "pressure fuelrate"
+    "tempGauges tempGauges";
+}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;min-height:120px}
+.ph{display:flex;justify-content:space-between;align-items:center;color:#9fb0c4;border-bottom:1px solid var(--border);padding:8px 10px}
+.pb{padding:10px}
+
+.kpis{grid-area:kpis} .speed{grid-area:speed} .gauge{grid-area:gauge} .rpm{grid-area:rpm}
+.viewer{grid-area:viewer;min-height:320px}
+.gps{grid-area:gps} .temps{grid-area:temps}
+.pressure{grid-area:pressure} .fuelrate{grid-area:fuelrate}
+.tempGauges{grid-area:tempGauges}
+
+.kpi-wrap{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.kpi{background:#0f1520;border:1px solid var(--border);border-radius:10px;padding:12px}
+.kpi .lbl{color:var(--muted);font-size:12px}.kpi .val{font-size:26px;font-weight:700}
+
+canvas{display:block;width:100%;height:260px;border-radius:8px} .small{height:200px}
+.legend{display:flex;gap:10px;color:#9fb0c4;font-size:12px;margin-bottom:6px}
+.legend .it{display:flex;gap:6px;align-items:center;border:1px solid var(--border);background:#0f1520;border-radius:999px;padding:2px 8px}
+.sw{width:10px;height:10px;border-radius:2px}
+
+.viewer .notice{color:#9fb0c4;font-size:12px;padding:10px}
+
+.feed{max-width:1200px;margin:12px auto;padding:12px}
+.feed .toolbar{display:flex;gap:8px;margin-bottom:8px}
+.btn{background:#0f1520;border:1px solid var(--border);border-radius:8px;color:var(--fg);padding:6px 10px;cursor:pointer}
+.feed .row{display:grid;grid-template-columns:120px 280px 1fr;gap:12px;align-items:start;border-bottom:1px dashed var(--border);padding:10px 6px}
+.feed .topic{color:#93c5fd}
+.json{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px}
+.jrow{line-height:1.5}
+.jk{color:#93c5fd}
+.jv-num{color:#f59e0b}
+.jv-str{color:#34d399}
+.jv-bool{color:#a78bfa}
+.jv-null{color:#9aa4b2}
+.fold{cursor:pointer;user-select:none;color:#9aa4b2}
+.fn{display:inline-block;width:10px;text-align:center}
+
+.gauges3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}

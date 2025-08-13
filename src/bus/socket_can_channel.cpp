@@ -23,10 +23,18 @@ SocketCanChannel& SocketCanChannel::getInstance(){
 }
 
 bool SocketCanChannel::open(std::string_view ifname, bool /*fd_mode*/) {
-    if (fd_ != -1) return false;
+    if (fd_ != -1)
+    {
+        std::cerr << "[SocketCanChannel] Socket already open.\n";
+        return false;
+    }    
     fd_ = ::socket(PF_CAN, SOCK_RAW, CAN_RAW);
-    if (fd_ < 0) return false;
-        
+    if (fd_ < 0)
+    {
+        std::cerr << "[SocketCanChannel] Socket creation failed: " << strerror(errno) << "\n";
+        return false;
+    }
+
     ifreq ifr{};
     std::strncpy(ifr.ifr_name, ifname.data(), IFNAMSIZ - 1);
     if (ioctl(fd_, SIOCGIFINDEX, &ifr) < 0) {
@@ -53,7 +61,6 @@ bool SocketCanChannel::read(Frame& out) {
     ssize_t n = ::recv(fd_, &raw_frame, sizeof(raw_frame), 0);
     if (n != sizeof(raw_frame)) return false;
 
-    // -- DÜZELTME: ham can_id içindeki bayrakları da koru
     out.id = raw_frame.can_id;
 
     // Data ve timestamp

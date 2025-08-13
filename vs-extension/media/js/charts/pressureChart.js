@@ -1,0 +1,2 @@
+import { LineChart, now, rand } from '../core/chartCore.js';
+export class PressureChart { constructor(c){ this.chart=new LineChart(c,'#fca5a5'); const t=now(),span=60*20; this.chart.setRange(t-span,t);} pushSample(t,v){this.chart.push(t,v);} draw(){this.chart.draw();} static seed(i){ let v=300; const t=now(),span=60*20; for(let s=0;s<span;s+=3){ v += rand()*15; v=Math.max(200, Math.min(650, v)); i.pushSample(t-span+s,v);} i.draw(); } }

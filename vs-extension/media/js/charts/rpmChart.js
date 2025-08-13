@@ -1,0 +1,2 @@
+import { LineChart, clamp, now, rand } from '../core/chartCore.js';
+export class RpmChart { constructor(canvas){ this.chart=new LineChart(canvas,'#a78bfa'); const t=now(),span=60*20; this.chart.setRange(t-span,t);} pushSample(t,v){this.chart.push(t,v);} draw(){this.chart.draw();} static seed(i){let v=800; const t=now(),span=60*20; for(let s=0;s<span;s+=2){ v=Math.max(700,Math.min(3800, v+rand()*120 + (Math.random()<0.01?800:0))); i.pushSample(t-span+s,v);} i.draw();} }

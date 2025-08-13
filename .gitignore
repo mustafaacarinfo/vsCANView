@@ -47,7 +47,6 @@ coverage/
 # ─────────────────────────────
 # Editor / IDE miscellany
 # ─────────────────────────────
-.vscode/
 .idea/
 *.code-workspace
 *.sw?

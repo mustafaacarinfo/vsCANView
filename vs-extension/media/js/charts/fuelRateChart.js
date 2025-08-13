@@ -1,0 +1,2 @@
+import { LineChart, now, rand } from '../core/chartCore.js';
+export class FuelRateChart { constructor(c){ this.chart=new LineChart(c,'#34d399'); const t=now(),span=60*20; this.chart.setRange(t-span,t);} pushSample(t,v){this.chart.push(t,v);} draw(){this.chart.draw();} static seed(i){ let v=22; const t=now(),span=60*20; for(let s=0;s<span;s+=3){ v += rand()*1.4; v=Math.max(10, Math.min(40, v)); i.pushSample(t-span+s,v);} i.draw(); } }

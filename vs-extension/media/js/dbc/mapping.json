@@ -1,0 +1,55 @@
+{
+  "rules": [
+    {
+      "contains": [
+        "speed"
+      ],
+      "chart": "speed"
+    },
+    {
+      "contains": [
+        "rpm"
+      ],
+      "chart": "rpm"
+    },
+    {
+      "contains": [
+        "cool"
+      ],
+      "chart": "temp:coolant"
+    },
+    {
+      "contains": [
+        "oil"
+      ],
+      "chart": "temp:oil"
+    },
+    {
+      "contains": [
+        "exh",
+        "egt"
+      ],
+      "chart": "temp:exhaust"
+    },
+    {
+      "contains": [
+        "press"
+      ],
+      "chart": "pressure"
+    },
+    {
+      "contains": [
+        "fuel",
+        "rate"
+      ],
+      "chart": "fuelRate"
+    },
+    {
+      "contains": [
+        "fuel",
+        "level"
+      ],
+      "chart": "fuelGauge"
+    }
+  ]
+}

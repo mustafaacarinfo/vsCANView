@@ -19,15 +19,17 @@ bool DbcDatabase::load(const std::string& dbc_file)
     std::ifstream ifs(dbc_file);
     if (!ifs) 
     {
-         std::cerr << "[DBC] Dosya açılamadı: " << dbc_file << '\n';
-         return false; 
-    } else 
-    {
-            std::cout << "[DBC] Dosya açıldı: " << dbc_file << '\n';
-    }
+        std::cerr << "[DBC] File cannot opened: " << dbc_file << '\n';
+        return false; 
+    } 
 
     db_ = dbcppp::INetwork::LoadDBCFromIs(ifs);
-    if (!db_)  { std::cerr << "[DBC] Parse başarısız\n"; return false; }
+    if (!db_)  
+    {
+        std::cerr << "[DBC] Parse failed\n"; return false; 
+    }
+
+    std::cout << "[DBC] File has been opened: " << dbc_file << '\n';
 
     return true;
 }

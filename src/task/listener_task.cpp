@@ -33,12 +33,22 @@ namespace canmqtt::task
     auto &mqtt_pub = mqtt::Publisher::getInstance();
 
     std::jthread{
-        [&]{
+        [&](void){
           Frame frame;
           json j_canFrame;
 
           while (ch.read(frame))
           {
+            /* 
+            
+              FRAME
+
+              cyber security  
+
+
+
+
+            */
             if(build_json::BuildJson(j_canFrame,frame,cl,db) == false)
             {
               std::cerr << "Failed to build JSON for CAN frame with ID: " << frame.id << '\n';

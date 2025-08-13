@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CAN Debugger – Modular</title>
+  <link rel="stylesheet" href="__CSS_URI__" />
+</head>
+<body>
+  <div class="nav"><div>🏠 Dashboards › <b>j1939-truck</b></div><div style="color:#9fb0c4">CAN Debugger – Modular</div></div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="dash">Dashboard</div>
+    <div class="tab" data-tab="feed">Live CAN Feed</div>
+  </div>
+
+  <div class="chips">
+    <div class="chip"><label>bus</label>
+      <select id="busSel"><option>can0</option><option>can1</option><option>vcan0</option></select>
+    </div>
+    <div class="chip"><label>id/pgn</label>
+      <input id="idFilter" placeholder="0x18FEF100 / 8000148" />
+    </div>
+    <div class="chip"><label>decode</label>
+      <select id="decodeSel"><option>RAW</option><option>DBC</option></select>
+    </div>
+    <div class="chip"><label>signal</label>
+      <select id="signalSel" disabled title="DBC seçilince aktif olur"><option>—</option></select>
+    </div>
+    <div class="chip"><label>view</label>
+      <select id="viewSel"><option>All</option><option>Only speed/rpm</option><option>Only temperatures</option></select>
+    </div>
+    <div class="chip"><label>rate</label>
+      <select id="rateSel"><option>1s</option><option>200ms</option><option>50ms</option></select>
+    </div>
+    <div class="chip"><button id="pauseBtn" class="btn">⏸ Pause</button></div>
+  </div>
+
+  <div class="status">
+    <div class="badge"><span id="connDot" class="dot fail"></span><span id="connTxt">Disconnected</span></div>
+    <div class="badge">msgs/sec: <b id="mps">0</b></div>
+    <div class="badge">total: <b id="total">0</b></div>
+    <div class="badge">last: <span id="lastTopic">—</span></div>
+  </div>
+
+  <div id="page-dash" class="page active">
+    <div class="grid">
+      <div class="panel kpis"><div class="pb kpi-wrap">
+        <div class="kpi"><div class="lbl">Distance</div><div class="val" id="kpiDistance">465 Mm</div></div>
+        <div class="kpi"><div class="lbl">Operation</div><div class="val" id="kpiOperation">51.2 week</div></div>
+        <div class="kpi"><div class="lbl">Speed</div><div class="val" id="kpiSpeed">56 km/h</div></div>
+        <div class="kpi"><div class="lbl">Fuel Rate</div><div class="val" id="kpiFuelRate">30 l/h</div></div>
+        <div class="kpi"><div class="lbl">Fuel Eco…</div><div class="val" id="kpiEco">2.5 km/l</div></div>
+      </div></div>
+
+      <div class="panel speed"><div class="ph"><div>Speed (km/h)</div></div>
+        <div class="pb"><div class="legend" id="lgSpeed"></div><canvas id="speed"></canvas></div>
+      </div>
+
+      <div class="panel gauge"><div class="ph"><div>Fuel (%)</div></div>
+        <div class="pb"><canvas id="fuel" class="small"></canvas></div>
+      </div>
+
+      <div class="panel rpm"><div class="ph"><div>Engine RPM</div></div>
+        <div class="pb"><canvas id="rpm" class="small"></canvas></div>
+      </div>
+
+      <div class="panel viewer">
+        <div class="ph"><div>Vehicle 3D</div></div>
+        <div class="pb">
+          <div id="vehicleHost" style="height:300px;position:relative">
+            <canvas id="vehicleCanvas" style="width:100%;height:100%"></canvas>
+            <div class="notice" id="vehicleNotice"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel gps"><div class="ph"><div>GPS Position</div></div>
+        <div class="pb"><canvas id="map"></canvas></div>
+      </div>
+
+      <div class="panel temps"><div class="ph"><div>Temperatures (°C)</div></div>
+        <div class="pb"><div class="legend" id="lgTemps"></div><canvas id="temps" class="small"></canvas></div>
+      </div>
+
+      <div class="panel pressure"><div class="ph"><div>Aftertreatment Fuel Pressure (kPa)</div></div>
+        <div class="pb"><canvas id="pressure" class="small"></canvas></div>
+      </div>
+
+      <div class="panel fuelrate"><div class="ph"><div>Fuel Rate (l/h)</div></div>
+        <div class="pb"><canvas id="fuelRate" class="small"></canvas></div>
+      </div>
+
+      <div class="panel tempGauges">
+        <div class="ph"><div>Temperature Gauges (°C)</div></div>
+        <div class="pb">
+          <div class="gauges3">
+            <canvas id="gCoolant" class="small"></canvas>
+            <canvas id="gOil" class="small"></canvas>
+            <canvas id="gExhaust" class="small"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="page-feed" class="page">
+    <div class="feed">
+      <div class="toolbar">
+        <button id="clearFeed" class="btn">Clear</button>
+        <button id="exportFeed" class="btn">Export JSON</button>
+      </div>
+      <div id="feed"></div>
+    </div>
+  </div>
+
+  <script type="module" src="__APP_JS__"></script>
+</body>
+</html>

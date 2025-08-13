@@ -28,7 +28,7 @@ namespace canmqtt::util::json
       return oss.str();
     };
 
-    bool BuildJson(canmqtt_json  &j_canFrame, Frame &frame, auto &cl, auto &db)
+    inline bool BuildJson(canmqtt_json  &j_canFrame, Frame &frame, auto &cl, auto &db)
     {
         j_canFrame["ts"] = std::chrono::duration_cast<std::chrono::microseconds>(frame.ts).count();
         j_canFrame["bus"] = cl.Get("can", "channel", "");

@@ -15,7 +15,15 @@ ConfigLoader& ConfigLoader::getInstance() {
 
 bool ConfigLoader::Load(const std::string& path) {
   std::ifstream in(path);
-  if (!in) return false;
+  if (!in)
+  {
+      std::cerr << "[ConfigLoader] Failed to open config file: " << path << '\n';
+      return false;
+  }
+  else
+  {
+      std::cout << "[ConfigLoader] Config file opened successfully: " << path << '\n';
+  }
 
   std::string line, section;
   while (std::getline(in, line)) {

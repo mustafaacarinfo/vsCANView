@@ -18,7 +18,7 @@ void StartPeriodic() {
   int interval_ms = std::stoi(
       canmqtt::config::ConfigLoader::getInstance().Get("os",
                                          "periodic_task_interval_ms",
-                                         "50"));
+                                         ""));
   std::jthread
   {
     [interval_ms](void) 

@@ -1,0 +1,2 @@
+import { LineChart, clamp, now, rand } from '../core/chartCore.js';
+export class SpeedChart { constructor(canvas){ this.chart=new LineChart(canvas,'#60a5fa'); const t=now(),span=60*40; this.chart.setRange(t-span,t);} pushSample(t,v){this.chart.push(t,v);} draw(){this.chart.draw();} static seed(i){let v=0; const t=now(),span=60*40; for(let s=0;s<span;s+=5){ v=clamp(v+rand()*3+Math.max(0,rand()*1.2),0,110); i.pushSample(t-span+s,v);} i.draw();} }

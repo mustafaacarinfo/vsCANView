@@ -1,0 +1,22 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "WSL: Launch vsCANView",
+        "type": "cppdbg",
+        "request": "launch",
+        "cwd": "${workspaceFolder}/build",
+        "program": "${workspaceFolder}/build/vsCANView",
+  
+        "args": [
+          "../conf/volvo_v60_2015_pt.dbc"
+        ],
+        
+        "console": "integratedTerminal",
+        "MIMode": "gdb",
+        "miDebuggerPath": "/usr/bin/gdb",
+        "setupCommands": [ /* ... */ ]
+      }
+    ]
+  }
+  

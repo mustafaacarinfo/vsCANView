@@ -33,6 +33,8 @@ namespace canmqtt::mqtt
             std::cerr << "MQTT connect failed, rc=" << rc << '\n';
             return false;
         }
+        std::cout << "[MQTT] Connected to " << uri << " as " << client_id << '\n';
+        
         return true;
     }
 

@@ -1,16 +1,33 @@
-const fs = require('fs'); const path = require('path');
+const fs = require('fs'); 
+const path = require('path');
 
 function cp(src, dst){
-  fs.mkdirSync(path.dirname(dst), { recursive: true });
-  fs.copyFileSync(src, dst);
-  console.log('copied', src, '->', dst);
+  try {
+    // Hedef dizini oluştur
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    
+    // Dosyayı kopyala (varsa üzerine yaz)
+    if (fs.existsSync(dst)) {
+      fs.unlinkSync(dst);
+    }
+    fs.copyFileSync(src, dst);
+    console.log('copied', src, '->', dst);
+  } catch (err) {
+    console.error('Copy error:', err.message);
+    throw err;
+  }
 }
 try{
-  const r = p => require.resolve(p);
-  const threeModule = r('three/build/three.module.js');
-  const gltfLoader  = r('three/examples/jsm/loaders/GLTFLoader.js');
-  cp(threeModule, path.join(__dirname, '..', 'media', 'vendor', 'three', 'three.module.js'));
-  cp(gltfLoader,  path.join(__dirname, '..', 'media', 'vendor', 'three', 'GLTFLoader.js'));
+  const nodeModules = path.join(__dirname, '..', 'node_modules', 'three');
+  const threeModule = path.join(nodeModules, 'build', 'three.module.js');
+  const gltfLoader = path.join(nodeModules, 'examples', 'jsm', 'loaders', 'GLTFLoader.js');
+  
+  if (fs.existsSync(threeModule) && fs.existsSync(gltfLoader)) {
+    cp(threeModule, path.join(__dirname, '..', 'media', 'js', 'three', 'vendor', 'three.module.js'));
+    cp(gltfLoader, path.join(__dirname, '..', 'media', 'js', 'three', 'vendor', 'GLTFLoader.js'));
+  } else {
+    throw new Error('Three.js dosyaları bulunamadı: ' + threeModule);
+  }
 }catch(e){
   console.warn('three copy failed:', e.message);
 }

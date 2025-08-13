@@ -5,8 +5,18 @@ export class VehicleViewer {
   }
   async init(){
     try{
-      const THREE = await import('../vendor/three/three.module.js');
-      const { GLTFLoader } = await import('../vendor/three/GLTFLoader.js');
+      console.log('VehicleViewer başlatılıyor...');
+      console.log('Model URI:', this.modelUri);
+      // ES6 modül yaklaşımı
+      console.log('Three.js ES6 modül olarak yükleniyor...');
+      
+      const THREE = await import('https://cdn.skypack.dev/three@0.137.0');
+      console.log('THREE.js yüklendi:', THREE);
+      
+      const { GLTFLoader } = await import('https://cdn.skypack.dev/three@0.137.0/examples/jsm/loaders/GLTFLoader.js');
+      console.log('GLTFLoader yüklendi:', GLTFLoader);
+      console.log('GLTFLoader yüklendi');
+      console.log('GLTFLoader yüklendi');
       this.THREE=THREE;
       this.renderer = new THREE.WebGLRenderer({ canvas:this.canvas, antialias:true, alpha:true });
       this.scene = new THREE.Scene();
@@ -15,9 +25,24 @@ export class VehicleViewer {
       this.scene.add(new THREE.AmbientLight(0xffffff,0.7));
       const dir=new THREE.DirectionalLight(0xffffff,0.7); dir.position.set(4,8,6); this.scene.add(dir);
       const loader=new GLTFLoader();
-      loader.load(this.modelUri, (g)=>{ this.scene.add(g.scene); this.animate(); }, undefined, (e)=>{ this.notice('GLB yüklenemedi: '+e.message); });
+      loader.load(this.modelUri, 
+        (g)=>{ 
+          console.log('Model başarıyla yüklendi');
+          this.scene.add(g.scene); 
+          this.animate(); 
+        }, 
+        (progress)=>{
+          console.log('Model yükleniyor:', (progress.loaded / progress.total * 100) + '%');
+        },
+        (e)=>{ 
+          console.error('Model yükleme hatası:', e);
+          this.notice('GLB yüklenemedi: '+e.message); 
+        });
       this.resize(); window.addEventListener('resize', this.handleResize); this.initialized=true; this.notice('');
-    }catch(e){ this.notice('Three.js modülleri kopyalanmalı: media/vendor/three/three.module.js ve GLTFLoader.js'); }
+    }catch(e){ 
+      console.error('VehicleViewer başlatma hatası:', e);
+      this.notice('Hata: ' + e.message);
+    }
   }
   notice(msg){ if(this.noticeEl) this.noticeEl.textContent=msg; }
   resize(){ const r=this.canvas.getBoundingClientRect(), ratio=window.devicePixelRatio||1;

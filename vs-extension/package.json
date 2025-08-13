@@ -1,7 +1,7 @@
 {
   "name": "can-debugger-modular",
   "displayName": "CAN Debugger (Modular)",
-  "description": "Mod\u00fcler webview: Speed, RPM, GPS, Fuel/Pressure/FuelRate, Temperature charts + gauges, 3D Vehicle, Live Feed (pretty JSON), status & filters.",
+  "description": "Modüler webview: Speed, RPM, GPS, Fuel/Pressure/FuelRate, Temperature charts + gauges, 3D Vehicle, Live Feed (pretty JSON), status & filters.",
   "version": "0.9.0",
   "publisher": "your-name",
   "engines": {
@@ -10,15 +10,12 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCommand:canDebugger.open"
-  ],
   "main": "./extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "canDebugger.open",
-        "title": "CAN Debugger: Open Modular Dashboard"
+        "command": "canDebugger.openDashboard",
+        "title": "CAN Debugger: Open Dashboard"
       }
     ],
     "configuration": {
@@ -53,6 +50,6 @@
   },
   "dependencies": {
     "mqtt": "^4.3.7",
-    "three": "^0.160.0"
+    "three": "^0.137.0"
   }
 }

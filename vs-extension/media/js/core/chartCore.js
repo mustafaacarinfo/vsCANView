@@ -1,12 +1,18 @@
 export function ctx2d(canvas){
-  const dpr = window.devicePixelRatio || 1;
+  // Performans optimizasyonu: piksel oranını sınırla
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5); // Maksimum 1.5x
   const r = canvas.getBoundingClientRect();
   const W = Math.max(1, Math.round(r.width  * dpr));
   const H = Math.max(1, Math.round(r.height * dpr));
   if(canvas.width !== W || canvas.height !== H){ canvas.width = W; canvas.height = H; }
-  const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+  const ctx = canvas.getContext('2d', { 
+    alpha: true, 
+    desynchronized: true,
+    willReadFrequently: false // Performans artışı
+  });
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingEnabled = false; // Performans için kapatıldı
+  ctx.imageSmoothingQuality = 'low'; // Gerekirse düşük kalite
   return ctx;
 }
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -18,33 +24,130 @@ export class LineChart {
     this.c = canvas; this.ctx = ctx2d(canvas);
     this.col = color; this.pad = { l:46, r:12, t:12, b:22 };
     this.data = []; this.xmin = 0; this.xmax = 1;
-    window.addEventListener('resize', () => this.ctx = ctx2d(this.c));
+    this._drawScheduled = false; // Çizim optimizasyonu için
+    this._cached = {}; // Cacheleme için
+    this._resizeTimeout = null;
+    
+    // Resize olayını optimize et
+    window.addEventListener('resize', () => {
+      if (this._resizeTimeout) clearTimeout(this._resizeTimeout);
+      this._resizeTimeout = setTimeout(() => {
+        this.ctx = ctx2d(this.c);
+        this._cached = {}; // Boyut değiştiği için önbelleği temizle
+        this.draw();
+        this._resizeTimeout = null;
+      }, 250);
+    });
   }
+  
   setRange(a,b){ this.xmin=a; this.xmax=b; }
-  push(t,v){ this.data.push({t:+t,v:+v}); if(this.data.length>20000) this.data.splice(0,this.data.length-20000); }
-  _x(t){ const w=this.c.getBoundingClientRect().width - this.pad.l - this.pad.r; return this.pad.l + (t-this.xmin)*w/(this.xmax-this.xmin || 1); }
-  _y(v,y0,y1){ const h=this.c.getBoundingClientRect().height - this.pad.t - this.pad.b; return this.pad.t + (y1-v)*h/(y1-y0 || 1); }
+  
+  push(t,v){ 
+    this.data.push({t:+t,v:+v}); 
+    // Veri seti kontrolü - aşırı büyük veriler için daha agresif temizleme
+    if(this.data.length > 20000) {
+      this.data.splice(0, this.data.length - 10000); // Yarısını temizle
+    }
+  }
+  
+  // Koordinat dönüşümlerini önbellekle
+  _x(t){ 
+    // Önceden hesaplanmış değer varsa onu kullan
+    const cacheKey = `x_${t}_${this.xmin}_${this.xmax}`;
+    if (this._cached[cacheKey] !== undefined) return this._cached[cacheKey];
+    
+    const w = this.c.getBoundingClientRect().width - this.pad.l - this.pad.r; 
+    const result = this.pad.l + (t-this.xmin)*w/(this.xmax-this.xmin || 1);
+    
+    // Sonucu önbelleğe al (en fazla 100 değer cache'le)
+    if (Object.keys(this._cached).length < 100) {
+      this._cached[cacheKey] = result;
+    }
+    return result;
+  }
+  
+  _y(v,y0,y1){ 
+    const cacheKey = `y_${v}_${y0}_${y1}`;
+    if (this._cached[cacheKey] !== undefined) return this._cached[cacheKey];
+    
+    const h = this.c.getBoundingClientRect().height - this.pad.t - this.pad.b; 
+    const result = this.pad.t + (y1-v)*h/(y1-y0 || 1);
+    
+    if (Object.keys(this._cached).length < 100) {
+      this._cached[cacheKey] = result;
+    }
+    return result; 
+  }
   draw(){
+    // Sayfa görünür değilse veya planlı bir çizim varsa atla
+    if (window.canAppHidden || this._drawScheduled) return;
+    
+    // Sadece görünür ise çizim yap
+    const isVisible = document.visibilityState !== 'hidden' && 
+                      this.c.offsetParent !== null;
+    
+    if (!isVisible) return;
+    
+    // Çizim planla - çoklu çizim çağrılarını tek bir çizime birleştir
+    this._drawScheduled = true;
+    
+    requestAnimationFrame(() => {
+      this._drawScheduled = false;
+      this._drawNow();
+    });
+  }
+  
+  // Asıl çizim fonksiyonu
+  _drawNow(){
     this.ctx = ctx2d(this.c);
     const ctx=this.ctx, r=this.c.getBoundingClientRect(), W=r.width, H=r.height;
     ctx.clearRect(0,0,W,H);
-    let y0=Infinity,y1=-Infinity;
-    for(const p of this.data){ if(p.t>=this.xmin && p.t<=this.xmax){ if(p.v<y0)y0=p.v; if(p.v>y1)y1=p.v; } }
+    
+    // Performans için veri noktalarını örnekle (downsample)
+    const maxPoints = 150; // Maksimum gösterilecek nokta sayısı
+    const visibleData = this.data.filter(p => p.t >= this.xmin && p.t <= this.xmax);
+    let dataToUse = visibleData;
+    
+    // Çok fazla nokta varsa, örnekle
+    if (visibleData.length > maxPoints) {
+      const step = Math.ceil(visibleData.length / maxPoints);
+      dataToUse = [];
+      for (let i = 0; i < visibleData.length; i += step) {
+        dataToUse.push(visibleData[i]);
+      }
+      // Son noktayı ekleyin
+      if (visibleData.length > 0 && dataToUse[dataToUse.length-1] !== visibleData[visibleData.length-1]) {
+        dataToUse.push(visibleData[visibleData.length-1]);
+      }
+    }
+    
+    // Min/max değerleri bul
+    let y0=Infinity, y1=-Infinity;
+    for(const p of dataToUse) { 
+      if(p.v<y0) y0=p.v; 
+      if(p.v>y1) y1=p.v; 
+    }
     if(!isFinite(y0)){ y0=0; y1=1; } if(y0===y1){ y0-=1; y1+=1; }
 
     ctx.strokeStyle='#1f2430'; ctx.lineWidth=1;
     ctx.beginPath(); ctx.moveTo(this.pad.l,this.pad.t); ctx.lineTo(this.pad.l,H-this.pad.b); ctx.lineTo(W-this.pad.r,H-this.pad.b); ctx.stroke();
 
+    // Yalnızca 3 çizgi çizerek (0, 50%, 100%) performansı arttır
     ctx.strokeStyle='#151b24'; ctx.fillStyle='#b7c0cd'; ctx.font='11px ui-sans-serif';
-    for(let i=0;i<=5;i++){ const v=y0+(y1-y0)*i/5; const py=this._y(v,y0,y1);
+    for(let i of [0,2,5]){ // Sadece bazı değerleri göster
+      const v=y0+(y1-y0)*i/5; const py=this._y(v,y0,y1);
       ctx.beginPath(); ctx.moveTo(this.pad.l,py); ctx.lineTo(W-this.pad.r,py); ctx.stroke();
       ctx.fillText(v.toFixed(0),6,py+3);
     }
 
+    // Çizgi çizimi
     ctx.strokeStyle=this.col; ctx.lineWidth=1.6; ctx.beginPath();
     let started=false;
-    for(const p of this.data){ if(p.t<this.xmin || p.t>this.xmax) continue; const xx=this._x(p.t), yy=this._y(p.v,y0,y1);
-      if(!started){ ctx.moveTo(xx,yy); started=true; } else ctx.lineTo(xx,yy); } ctx.stroke();
+    for(const p of dataToUse){ 
+      const xx=this._x(p.t), yy=this._y(p.v,y0,y1);
+      if(!started){ ctx.moveTo(xx,yy); started=true; } else ctx.lineTo(xx,yy); 
+    } 
+    ctx.stroke();
   }
 }
 

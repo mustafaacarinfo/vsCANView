@@ -225,7 +225,7 @@ requestAnimationFrame(() => {
 import('./seed.mjs').then(m=>m.seedAll({speed,rpm,gps,pressure,fuelRate,fuelGauge,tGauges}));
 
 // 3D viewer - URI check and initialization
-let vehicleUri = '__VEHICLE_URI__';
+let vehicleUri = 'https://vscode-remote%2Bwsl-002bubuntu-002d18-002e04.vscode-resource.vscode-cdn.net/home/mustafa/C%2B%2B/vsCANView/vs-extension/media/vehicle.glb';
 let viewer = null;
 
 // Vehicle URI message check

@@ -53,13 +53,20 @@ export class LineChart {
   
   // Tüm veri noktalarını temizle
   clearData() {
+    // Completely empty the data array
     this.data = [];
-    // Varsayılan bir başlangıç değeri ekle (grafik boş kalmasın)
-    const now = Date.now() / 1000;
-    this.data.push({t: now-10, v: this._defaultValue});
-    this.data.push({t: now, v: this._defaultValue});
-    this.xmin = now-10;
-    this.xmax = now;
+    
+    // Add baseline data points to avoid empty chart
+    const currentTime = now();
+    this.push(currentTime-10, this._defaultValue);
+    this.push(currentTime, this._defaultValue);
+    
+    // Update range to show current time window
+    this.xmin = currentTime-10;
+    this.xmax = currentTime;
+    
+    // Force redraw
+    this.draw();
   }
   
   // Koordinat dönüşümlerini önbellekle

@@ -1,351 +1,445 @@
-// ...existing code...
-import { Speedometer } from './js/charts/speedometer.js';
-import { Rpm } from './js/charts/rpm.js';
-import { TemperatureGauges } from './js/charts/tempGauges.js';
+// Minimal self-contained solution to speed update problem
 
-const vscode = acquireVsCodeApi();
-
-// Global gauge instances with better initialization
-let speedometer = null;
-let rpm = null;
-let tempGauges = null;
-let gaugesInitialized = false;
-let tabsInitialized = false;
-
-// Live CAN Feed variables
-let canMessages = [];
-let messageCounter = 0;
-let feedPaused = false;
-
-// Fix gauge initialization
-function initializeGauges() {
-    console.log('🔧 Initializing gauges...');
+// Create standalone direct UI updater
+(function installDirectUpdater() {
+  console.log('🚀 Installing direct DOM updater...');
+  
+  // Create debug UI
+  const debugContainer = document.createElement('div');
+  debugContainer.style.cssText = `
+    position: fixed;
+    top: 0;
+    right: 0;
+    background: #000;
+    color: #0f0;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 10px;
+    border: 1px solid #0f0;
+    z-index: 9999;
+    max-width: 300px;
+    max-height: 300px;
+    overflow: auto;
+  `;
+  debugContainer.innerHTML = '<h4>CAN Debug</h4><div id="can-debug"></div>';
+  document.body.appendChild(debugContainer);
+  
+  // Add direct DOM updater
+  window.updateCAN = function(data) {
+    // Log raw data
+    const debugDiv = document.getElementById('can-debug');
+    if (debugDiv) {
+      const item = document.createElement('div');
+      item.textContent = JSON.stringify(data);
+      item.style.borderBottom = '1px solid #333';
+      item.style.padding = '3px 0';
+      debugDiv.insertBefore(item, debugDiv.firstChild);
+      
+      // Limit entries
+      if (debugDiv.children.length > 10) {
+        debugDiv.removeChild(debugDiv.lastChild);
+      }
+    }
     
-    try {
-        // Initialize speedometer
-        const speedCanvas = document.getElementById('speedometer');
-        if (speedCanvas) {
-            speedometer = new Speedometer(speedCanvas);
-            console.log('✅ Speedometer initialized');
-        } else {
-            console.error('❌ Speedometer canvas not found');
+    // Direct update speed elements
+    if ('speed' in data) {
+      const speedElements = [
+        document.getElementById('speed'),
+        document.getElementById('speed-value'),
+        ...Array.from(document.querySelectorAll('[data-metric="speed"]'))
+      ];
+      
+      // Update all speed elements
+      speedElements.filter(Boolean).forEach(el => {
+        if (el) {
+          const formatted = typeof data.speed === 'number' ? 
+            Math.round(data.speed) : data.speed;
+          
+          el.textContent = el.id === 'speed' ? 
+            `${formatted} km/h` : formatted;
+          
+          // Highlight update
+          el.style.transition = 'none';
+          el.style.backgroundColor = '#ff06';
+          setTimeout(() => {
+            el.style.transition = 'background-color 0.5s';
+            el.style.backgroundColor = 'transparent';
+          }, 50);
         }
+      });
+    }
+
+    // RPM extraction (multi-key)
+    const rpmVal = data.rpm ??
+                   (data.signals && (data.signals.EngineRPM || data.signals.EngineSpeed || data.signals.EngSpeed));
+    if (rpmVal !== undefined) {
+      const rpmNum = Number(rpmVal);
+      const rpmEl = document.getElementById('rpm-value');
+      if (rpmEl && !isNaN(rpmNum)) {
+        rpmEl.textContent = `${Math.round(rpmNum)} RPM`;
+        rpmEl.style.background = '#264653';
+        setTimeout(()=> rpmEl.style.background = 'transparent', 300);
+        console.log('[UI] Applied RPM value:', rpmNum);
+      } else {
+        console.warn('[UI] RPM element missing or invalid value:', rpmVal);
+      }
+    }
+  };
+  
+  // Listen for messages from extension
+  window.addEventListener('message', e => {
+    const msg = e.data;
+    if (!msg || !msg.command) return;
+    
+    if (msg.command === 'canData' && msg.data) {
+      // Call our global updater
+      window.updateCAN(msg.data);
+      
+      // Log to console for debugging
+      console.log(`📥 CAN data received:`, msg.data);
+    }
+  });
+  
+  // Test with fake data on page load
+  setTimeout(() => {
+    const testSpeed = Math.floor(Math.random() * 200);
+    console.log(`🧪 Testing with speed=${testSpeed}`);
+    window.updateCAN({speed: testSpeed});
+  }, 1000);
+  
+  console.log('✅ Direct DOM updater installed');
+})();
+
+// Existing code can stay, this runs independently
+
+// Tab switching ve cross-tab veri paylaşımı için minimal çözüm
+
+// Global state for cross-tab updates
+window.canMetrics = {
+  speed: 0,
+  distance: 0,
+  operationTime: 0,
+  fuelRate: 0,
+  fuelEco: 0
+};
+
+// Force update all metric displays regardless of active tab
+function forceUpdateMetrics() {
+  const metrics = window.canMetrics;
+  
+  // Speed updates - try all possible selectors
+  const speedSelectors = [
+    '#speed',
+    '[data-metric="speed"]',
+    '.metric-value[id="speed"]',
+    '.speed-display'
+  ];
+  
+  speedSelectors.forEach(selector => {
+    document.querySelectorAll(selector).forEach(el => {
+      if (el) {
+        el.textContent = `${Math.round(metrics.speed)} km/h`;
+        el.style.color = '#ff0'; // Highlight update
+        setTimeout(() => el.style.color = '', 200);
+      }
+    });
+  });
+  
+  // Other metrics
+  const metricMap = {
+    'distance': `${metrics.distance.toFixed(1)} km`,
+    'operation-time': `${metrics.operationTime.toFixed(1)} h`, 
+    'fuel-rate': `${metrics.fuelRate.toFixed(1)} l/h`,
+    'fuel-eco': `${metrics.fuelEco.toFixed(1)} km/l`
+  };
+  
+  Object.entries(metricMap).forEach(([id, text]) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.textContent = text;
+      el.style.color = '#ff0';
+      setTimeout(() => el.style.color = '', 200);
+    }
+  });
+
+  const rpmEl = document.getElementById('rpm-value');
+  if (rpmEl && window.lastRpmValue !== undefined) {
+    rpmEl.textContent = `${Math.round(window.lastRpmValue)} RPM`;
+  }
+  
+  console.log('📊 Force updated all metrics:', metrics);
+}
+
+// Tab switching handler
+function initTabSwitching() {
+  document.querySelectorAll('.tab-button').forEach(button => {
+    button.addEventListener('click', () => {
+      const targetTab = button.dataset.tab;
+      
+      // Update active tab button
+      document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+      button.classList.add('active');
+      
+      // Update active tab content
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+      });
+      
+      const targetContent = document.getElementById(targetTab);
+      if (targetContent) {
+        targetContent.classList.add('active');
         
-        // Initialize RPM
-        const rpmCanvas = document.getElementById('rpm');
-        if (rpmCanvas) {
-            rpm = new Rpm(rpmCanvas);
-            console.log('✅ RPM gauge initialized');
-        } else {
-            console.error('❌ RPM canvas not found');
+        // Force metrics update when switching to dashboard
+        if (targetTab === 'dashboard-tab') {
+          setTimeout(forceUpdateMetrics, 100);
         }
-        
-        // Initialize temperature gauges
-        const tempCanvas = document.getElementById('temperature-gauges');
-        if (tempCanvas) {
-            tempGauges = new TemperatureGauges(tempCanvas);
-            console.log('✅ Temperature gauges initialized');
-        } else {
-            console.error('❌ Temperature gauges canvas not found');
-        }
-        
-        gaugesInitialized = true;
-        console.log('✅ All gauges initialized successfully');
-    } catch (error) {
-        console.error('❌ Error initializing gauges:', error);
-    }
+      }
+    });
+  });
 }
 
-// Enhanced clear all charts function with additional metrics
-function clearCharts() {
-    console.log('🧹 Clearing all charts and metrics...');
-    
-    try {
-        // Clear gauge values
-        if (speedometer) {
-            speedometer.setValue(0);
-        }
-        
-        if (rpm) {
-            rpm.setValue(0);
-        }
-        
-        if (tempGauges) {
-            tempGauges.setEngineTemp(0);
-            tempGauges.setCoolantTemp(0);
-        }
-        
-        // Clear additional metrics in the DOM
-        const metricsToReset = ['distance', 'operation-time', 'speed', 'fuel-rate', 'fuel-eco'];
-        metricsToReset.forEach(metricId => {
-            const element = document.getElementById(metricId);
-            if (element) {
-                element.textContent = '0';
-            }
-            
-            // Also clear any value displays with -value suffix
-            const valueElement = document.getElementById(`${metricId}-value`);
-            if (valueElement) {
-                valueElement.textContent = '0';
-            }
-        });
-        
-        // Update any special formatting or units
-        updateMetricDisplay('distance', 0, 'km');
-        updateMetricDisplay('operation-time', 0, 'h');
-        updateMetricDisplay('speed', 0, 'km/h');
-        updateMetricDisplay('fuel-rate', 0, 'l/h');
-        updateMetricDisplay('fuel-eco', 0, 'km/l');
-        
-        console.log('✅ All charts and metrics reset to 0');
-    } catch (error) {
-        console.error('❌ Error clearing charts:', error);
-    }
-}
-
-// Helper to update metric displays with proper formatting
-function updateMetricDisplay(id, value, unit = '') {
-    const element = document.getElementById(id);
-    const valueElement = document.getElementById(`${id}-value`);
-    
-    // Format value based on type
-    let formattedValue = value;
-    
-    // Apply specific formatting for different metrics
-    switch (id) {
-        case 'distance':
-            formattedValue = value.toFixed(1); // 1 decimal place for distance
-            break;
-            
-        case 'operation-time':
-            formattedValue = value.toFixed(1); // 1 decimal place for hours
-            break;
-            
-        case 'speed':
-            formattedValue = Math.round(value); // Whole number for speed
-            break;
-            
-        case 'fuel-rate':
-            formattedValue = value.toFixed(2); // 2 decimal places for fuel rate
-            break;
-            
-        case 'fuel-eco':
-            formattedValue = value.toFixed(1); // 1 decimal place for economy
-            break;
-            
-        default:
-            formattedValue = value.toString();
-    }
-    
-    // Update elements if they exist
-    if (element) {
-        element.textContent = unit ? `${formattedValue} ${unit}` : formattedValue;
-    }
-    
-    if (valueElement) {
-        valueElement.textContent = formattedValue;
-    }
-    
-    return formattedValue;
-}
-
-// Extend MQTT status indicator with stats panel
-function ensureMqttStatsArea() {
-    let stats = document.getElementById('mqtt-stats');
-    if (!stats) {
-        const container = document.querySelector('.mqtt-status');
-        if (!container) return;
-        stats = document.createElement('div');
-        stats.id = 'mqtt-stats';
-        stats.style.fontSize = '11px';
-        stats.style.marginTop = '4px';
-        stats.style.opacity = '0.75';
-        container.appendChild(stats);
-    }
-    return stats;
-}
-
-// Update diagnostics
-function updateMqttDiagnostics(d) {
-    const el = ensureMqttStatsArea();
-    if (!el) return;
-    const rate = d.uptimeMs > 0 ? (d.count * 1000 / d.uptimeMs).toFixed(2) : '0';
-    el.textContent = `Msgs: ${d.count} | Rate: ${rate}/s | Last: ${d.lastMsgDelta}ms | Topics: ${d.topics.join(', ')}`;
-}
-
-// ---- Helpers ----
-function toNum(v) {
-    if (v === undefined || v === null) return undefined;
-    const n = Number(v);
-    return isNaN(n) ? undefined : n;
-}
-
-function hasAnyValidValue(d) {
-    return ['speed','rpm','engineTemp','coolantTemp','distance','operationTime','fuelRate','fuelEco']
-        .some(k => d[k] !== undefined);
-}
-
-// ---- Gauge / metric update ----
-function updateGaugesAndMetrics(data) {
-    if (!gaugesInitialized) initializeGauges();
-
-    // Speed (gauge + metric)
-    if (data.speed !== undefined && speedometer) {
-        speedometer.setValue(data.speed);
-        updateMetricDisplay('speed', data.speed, 'km/h');
-    }
-    // RPM
-    if (data.rpm !== undefined && rpm) {
-        rpm.setValue(data.rpm);
-    }
-    // Temps
-    if (tempGauges) {
-        if (data.engineTemp !== undefined) tempGauges.setEngineTemp(data.engineTemp);
-        if (data.coolantTemp !== undefined) tempGauges.setCoolantTemp(data.coolantTemp);
-    }
-    // Extra metrics
-    if (data.distance !== undefined) updateMetricDisplay('distance', data.distance, 'km');
-    if (data.operationTime !== undefined) updateMetricDisplay('operation-time', data.operationTime, 'h');
-    if (data.fuelRate !== undefined) updateMetricDisplay('fuel-rate', data.fuelRate, 'l/h');
-    if (data.fuelEco !== undefined) updateMetricDisplay('fuel-eco', data.fuelEco, 'km/l');
-}
-
-// ---- CAN data processing ----
-function processCanData(raw) {
-    if (!raw) return;
-    // Prefer already standardized fields from extension
-    const signals = (raw.signals && typeof raw.signals === 'object') ? raw.signals : {};
-    const data = {
-        speed: toNum(raw.speed ?? signals.VehicleSpeed ?? signals.vehicle_speed ?? signals.SPEED),
-        rpm: toNum(raw.rpm ?? signals.EngineRPM ?? signals.engine_rpm ?? signals.RPM),
-        engineTemp: toNum(raw.engineTemp ?? signals.EngineTemp ?? signals.engine_temp),
-        coolantTemp: toNum(raw.coolantTemp ?? signals.CoolantTemp ?? signals.coolant_temp),
-        distance: toNum(raw.distance ?? signals.Distance ?? signals.TripDistance),
-        operationTime: toNum(raw.operationTime ?? signals.OperationTime ?? signals.EngineHours),
-        fuelRate: toNum(raw.fuelRate ?? signals.FuelRate ?? signals.fuel_rate),
-        fuelEco: toNum(raw.fuelEco ?? signals.FuelEconomy ?? signals.fuel_economy ?? signals.fuel_efficiency),
-        originalData: raw.originalData || raw
-    };
-    // Debug
-    console.log('[vsCANView] CAN frame -> speed:', data.speed, 'rpm:', data.rpm);
-    if (hasAnyValidValue(data)) {
-        updateGaugesAndMetrics(data);
-    }
-    addCanMessageToFeed(raw, !!raw.isTestData);
-}
-
-// Extend message event
+// Enhanced message handler
 window.addEventListener('message', e => {
-    const m = e.data;
-    if (!m) return;
-    switch (m.command) {
-        case 'canData':
-            processCanData(m.data);
-            break;
-        case 'mqttStats':
-            updateMqttDiagnostics(m);
-            break;
-        case 'mqttStatus':
-            // Optionally handle status (keep if earlier implementation exists)
-            break;
-        case 'dataStatus':
-            // Optional handling for test data flag
-            break;
-        default:
-            // ...existing code...
-            break;
-    }
+  const msg = e.data;
+  if (!msg || !msg.command) return;
+  
+  if (msg.command === 'canData' && msg.data) {
+    const data = msg.data;
+    
+    // Update global metrics state
+    if ('speed' in data) window.canMetrics.speed = Number(data.speed) || 0;
+    if ('distance' in data) window.canMetrics.distance = Number(data.distance) || 0;
+    if ('operationTime' in data) window.canMetrics.operationTime = Number(data.operationTime) || 0;
+    if ('fuelRate' in data) window.canMetrics.fuelRate = Number(data.fuelRate) || 0;
+    if ('fuelEco' in data) window.canMetrics.fuelEco = Number(data.fuelEco) || 0;
+    
+    // Force update metrics in all tabs
+    forceUpdateMetrics();
+    
+    // Also update CAN feed
+    updateCanFeed(data);
+    
+    console.log('📥 Updated metrics:', window.canMetrics);
+  }
 });
 
-// Initialize Live CAN Feed
-function initLiveCanFeed() {
-    const pauseButton = document.getElementById('pause-feed');
-    const clearButton = document.getElementById('clear-feed');
-}
-
-// Simple HTML escaper (add once)
-function escapeHtml(str) {
-    return String(str)
-        .replace(/&/g,'&amp;')
-        .replace(/</g,'&lt;')
-        .replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;')
-        .replace(/'/g,'&#39;');
-}
-
-// Recursively remove any "signals" key
-function sanitizeForJsonDisplay(obj, depth = 0) {
-    if (!obj || typeof obj !== 'object') return obj;
-    if (Array.isArray(obj)) return obj.map(o => sanitizeForJsonDisplay(o, depth + 1));
-    const out = {};
-    for (const k of Object.keys(obj)) {
-        if (k === 'signals') continue;                // drop signals everywhere
-        if (k === 'originalData') {
-            // keep originalData but without its signals inside
-            out[k] = sanitizeForJsonDisplay(obj[k], depth + 1);
-            continue;
-        }
-        out[k] = sanitizeForJsonDisplay(obj[k], depth + 1);
+// Dashboard ile entegrasyon: mesaj işleyicisi
+window.addEventListener('message', e => {
+  const msg = e.data;
+  if (!msg || !msg.command) return;
+  
+  if (msg.command === 'canData' && msg.data) {
+    // Mevcut updateCAN fonksiyonunu çağır
+    if (window.updateCAN) {
+      window.updateCAN(msg.data);
     }
-    return out;
+    
+    // Dashboard sinyal işleyicisini bilgilendir
+    // Bu otomatik olarak yapılıyor, çünkü VehicleDashboard da 'message' olayını dinliyor
+  }
+
+  if (msg.command === 'canData' && msg.data) {
+    console.log('[RAW->UI] Incoming canData keys:', Object.keys(msg.data));
+    if (msg.data.signals) {
+      console.log('[RAW->UI] Signal keys:', Object.keys(msg.data.signals));
+    }
+  }
+});
+
+// Simplified CAN feed updater
+function updateCanFeed(data) {
+  const feed = document.getElementById('can-messages');
+  if (!feed) return;
+  
+  const item = document.createElement('div');
+  item.className = 'can-message';
+  
+  // Check if raw CAN frame
+  const isRawFrame = data.raw && data.raw.includes('#');
+  
+  item.innerHTML = `
+    <div class="message-header">
+      <span class="timestamp">${new Date().toLocaleTimeString()}</span>
+      <span class="message-id">${isRawFrame ? 'RAW' : 'JSON'} | ID: ${data.id}</span>
+    </div>
+    <div class="message-data">
+      ${isRawFrame ? 
+        `<strong>Frame:</strong> ${data.raw}<br><strong>Speed:</strong> ${data.speed} km/h` :
+        `<pre>${JSON.stringify({speed: data.speed, distance: data.distance}, null, 2)}</pre>`
+      }
+    </div>
+  `;
+  
+  feed.insertBefore(item, feed.firstChild);
+  
+  // Limit messages
+  const messages = feed.querySelectorAll('.can-message');
+  if (messages.length > 50) {
+    messages[messages.length - 1].remove();
+  }
 }
 
-// Replace existing addCanMessageToFeed implementation
-function addCanMessageToFeed(canData, isTestData = false) {
-    if (feedPaused) return;
-    const messagesContainer = document.getElementById('can-messages');
-    const messageCounterEl = document.getElementById('message-counter');
-    if (!messagesContainer) return;
+// Initialize everything on DOM load
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('🚀 Initializing cross-tab CAN viewer...');
+  
+  initTabSwitching();
+  
+  // Test with initial values
+  setTimeout(() => {
+    window.canMetrics.speed = 42;
+    forceUpdateMetrics();
+  }, 500);
+  
+  console.log('✅ Cross-tab CAN viewer initialized');
+});
 
-    const noMsg = messagesContainer.querySelector('.no-messages');
-    if (noMsg) noMsg.remove();
+// Debug helper - manual speed test
+window.testSpeed = function(speed) {
+  window.canMetrics.speed = speed;
+  forceUpdateMetrics();
+  console.log(`🧪 Test speed set to: ${speed}`);
+};
 
-    const timestamp = new Date().toLocaleTimeString();
-    const repairedFlag = canData.originalData && canData.originalData._repairedSignals;
-
-    const original = canData.originalData || canData;
-    const signalsObj = (original.signals && typeof original.signals === 'object') ? original.signals : {};
-    const signalKeys = Object.keys(signalsObj);
-    const signalsCount = signalKeys.length;
-
-    const signalsListHtml = signalKeys.length
-        ? signalKeys.map(k => {
-            let v = signalsObj[k];
-            if (typeof v === 'number') v = Number.isInteger(v) ? v : v.toFixed(2);
-            return `<div class="signal-item"><span class="sig-name">${k}</span><span class="sig-sep">=</span><span class="sig-val">${v}</span></div>`;
-          }).join('')
-        : '<div class="signal-empty">No signals</div>';
-
-    // Sanitize object (remove all signals recursively)
-    const sanitized = sanitizeForJsonDisplay(original);
-    const jsonBody = JSON.stringify(sanitized, null, 2);
-
-    const card = document.createElement('div');
-    card.className = 'can-message' + (isTestData ? ' test-data' : '') + (repairedFlag ? ' repaired-signals' : '');
-    card.innerHTML = `
-      <div class="message-header">
-        <span class="timestamp">${timestamp}</span>
-        <span class="message-id">ID: ${canData.id || 'N/A'}</span>
-        ${signalsCount ? `<span class="signals-badge">${signalsCount} sig</span>` : '<span class="signals-badge empty">0 sig</span>'}
-        ${isTestData ? '<span class="test-data-badge">TEST</span>' : ''}
-        ${repairedFlag ? '<span class="repaired-badge">REPAIRED</span>' : ''}
-      </div>
-      <div class="signals-block">
-        <div class="signals-header">Signals (${signalsCount})</div>
-        <div class="signals-list">
-          ${signalsListHtml}
-        </div>
-      </div>
-      <div class="message-data">
-        <pre class="json-body">${escapeHtml(jsonBody)}</pre>
-      </div>
-    `;
-
-    messagesContainer.insertBefore(card, messagesContainer.firstChild);
-
-    const cards = messagesContainer.querySelectorAll('.can-message');
-    if (cards.length > 150) cards[cards.length - 1].remove();
-
-    messageCounter++;
-    if (messageCounterEl) messageCounterEl.textContent = `Messages: ${messageCounter}`;
+// --- Simple Gauge Renderer (lightweight) ---
+function drawSemiGauge(canvasId, value, min, max, color) {
+  const cvs = document.getElementById(canvasId);
+  if (!cvs) return;
+  const ctx = cvs.getContext('2d');
+  const w = cvs.width = cvs.clientWidth || 220;
+  const h = cvs.height = cvs.clientHeight || 120;
+  ctx.clearRect(0,0,w,h);
+  const cx = w/2, cy = h*0.95;
+  const r = Math.min(w*0.45, h*0.9);
+  const start = Math.PI, end = 2*Math.PI;
+  // background
+  ctx.lineWidth = r*0.18;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.beginPath(); ctx.arc(cx,cy,r,start,end); ctx.stroke();
+  // value
+  const pct = (Math.max(min, Math.min(max, value)) - min)/(max-min);
+  ctx.strokeStyle = color;
+  ctx.beginPath(); ctx.arc(cx,cy,r,start,start + (end-start)*pct); ctx.stroke();
+  // needle
+  const ang = start + (end-start)*pct;
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx,cy);
+  ctx.lineTo(cx + r*0.9*Math.cos(ang), cy + r*0.9*Math.sin(ang));
+  ctx.stroke();
 }
+
+// Cache last draw to avoid over-draw storms
+let _lastRpmDraw = 0;
+let _lastSpeedDraw = 0;
+
+// Extend updateCAN to draw gauges
+const _origUpdateCAN = window.updateCAN;
+window.updateCAN = function(data) {
+  _origUpdateCAN && _origUpdateCAN(data);
+
+  // RPM
+  const rpmVal = data.rpm ??
+    (data.signals && (data.signals.EngineRPM || data.signals.EngineSpeed || data.signals.EngSpeed));
+  if (rpmVal !== undefined) {
+    window.lastRpmValue = rpmVal;
+    const now = performance.now();
+    if (now - _lastRpmDraw > 120) {
+      drawSemiGauge('rpm-gauge', Number(rpmVal), 0, 8000, '#f59e0b');
+      _lastRpmDraw = now;
+      console.log('[Gauge] RPM gauge updated:', rpmVal);
+    }
+  }
+
+  // Speed (optional)
+  if (data.speed !== undefined) {
+    const now = performance.now();
+    if (now - _lastSpeedDraw > 200) {
+      drawSemiGauge('speed-gauge', Number(data.speed), 0, 220, '#3b82f6');
+      _lastSpeedDraw = now;
+    }
+  }
+};
+
+// Ensure gauge canvases exist (idempotent)
+function ensureGaugeCanvas(id, label, afterId) {
+  if (document.getElementById(id)) return;
+  const dash = document.getElementById('dashboard-tab');
+  if (!dash) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'gauge-container';
+  wrap.innerHTML = `
+    <h3>${label}</h3>
+    <canvas id="${id}"></canvas>
+    <div id="${id.replace('-gauge','')}-value" class="metric-value">0</div>
+  `;
+  dash.querySelector('.dashboard-grid')?.appendChild(wrap);
+  console.warn('[UI] Injected missing gauge canvas:', id);
+}
+
+// Call once DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+  ensureGaugeCanvas('rpm-gauge','Engine RPM');
+  ensureGaugeCanvas('speed-gauge','Vehicle Speed');
+});
+
+// Wrap original updateCAN AFTER its definition
+const __origUpdateCANInternal = window.updateCAN;
+window.updateCAN = function(data){
+  ensureGaugeCanvas('rpm-gauge','Engine RPM');
+  ensureGaugeCanvas('speed-gauge','Vehicle Speed');
+  __origUpdateCANInternal && __origUpdateCANInternal(data);
+
+  // Force immediate gauge redraw if values present but earlier width was 0
+  if (window.lastRpmValue !== undefined) {
+     drawSemiGauge('rpm-gauge', Number(window.lastRpmValue), 0, 8000, '#f59e0b');
+  }
+  if (data.speed !== undefined) {
+     drawSemiGauge('speed-gauge', Number(data.speed), 0, 220, '#3b82f6');
+  }
+};
+
+// Ek debug: ilk 5 mesajda sinyal isimlerini özetle
+let _msgCountDebug = 0;
+window.addEventListener('message', e => {
+  const m = e.data;
+  if (m?.command === 'canData') {
+    if (_msgCountDebug < 5) {
+      console.log('[DEBUG canData] rpm field =', m.data.rpm,
+                  'signal keys=', m.data.signals ? Object.keys(m.data.signals) : 'none');
+      _msgCountDebug++;
+    }
+  }
+});
+
+// Manuel test helper
+window.testRPM = function(v= (500+Math.random()*3000)|0){
+  window.updateCAN({ rpm: v, signals:{ EngineRPM:v } });
+  console.log('[TEST] Inject RPM', v);
+};
+
+// İlk animasyon (gauge boşsa görünür hale getir)
+setTimeout(()=> {
+  if (document.getElementById('rpm-gauge')) {
+    drawSemiGauge('rpm-gauge', 0, 0, 8000, '#f59e0b');
+    drawSemiGauge('speed-gauge', 0, 0, 220, '#3b82f6');
+    console.log('[INIT] Gauges primed.');
+  }
+}, 400);
+
+// On resize redraw
+window.addEventListener('resize', () => {
+  if (window.lastRpmValue !== undefined) {
+    drawSemiGauge('rpm-gauge', window.lastRpmValue, 0, 8000, '#f59e0b');
+  }
+});
+
+// Initial lazy draw
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    drawSemiGauge('rpm-gauge', 0, 0, 8000, '#f59e0b');
+    drawSemiGauge('speed-gauge', 0, 0, 220, '#3b82f6');
+  }, 300);
+});

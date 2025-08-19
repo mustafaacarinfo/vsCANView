@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as mqtt from 'mqtt';
 import { repairCanJson } from './utils/canUtils'; // add import (adjust relative path if needed)
+import { decodeCanFrameStr } from './utils/canDecode'; // İçe aktarmalar kısmına ekle
 
 // --- Added state / diagnostics ---
 let mqttClient: mqtt.MqttClient | null = null;
@@ -186,6 +187,31 @@ function initMqttConnection(context: vscode.ExtensionContext) {
         if (!realDataSeen) startTestDataLoop();
     }, TEST_DELAY_MS);
 
+    // Define possible field names for each metric
+    const fieldMappings = {
+        speed: ['VehicleSpeed', 'vehicle_speed', 'SPEED', 'speed', 'Speed'],
+        rpm: ['EngineRPM', 'EngineSpeed', 'EngSpeed', 'engine_rpm', 'RPM', 'rpm'], // <- EngSpeed & EngineSpeed eklendi
+        engineTemp: ['EngineTemp', 'engine_temp', 'ENGINE_TEMP', 'engineTemp'],
+        coolantTemp: ['CoolantTemp', 'coolant_temp', 'COOLANT_TEMP', 'coolantTemp'],
+        distance: ['Distance', 'distance', 'DISTANCE', 'trip_distance', 'odometer', 'TripDistance'],
+        operationTime: ['OperationTime', 'operation_time', 'OPERATION', 'engine_hours', 'hours'],
+        fuelRate: ['FuelRate', 'fuel_rate', 'FUEL_RATE', 'consumption', 'fuel_consumption'],
+        fuelEco: ['FuelEconomy', 'fuel_economy', 'FUEL_ECO', 'fuel_efficiency', 'economy', 'mpg', 'km_per_liter']
+    };
+
+    // Helper function to extract value by trying multiple field names
+    function extractValue(obj: any, fieldNames: string[]): number | undefined {
+        if (!obj) return undefined;
+        
+        for (const name of fieldNames) {
+            if (name in obj && obj[name] !== undefined) {
+                const val = Number(obj[name]);
+                if (!isNaN(val)) return val;
+            }
+        }
+        return undefined;
+    }
+
     client.on('message', (topic, payload) => {
         mqttMsgCount++;
         mqttLastMsgTs = Date.now();
@@ -203,64 +229,124 @@ function initMqttConnection(context: vscode.ExtensionContext) {
             }
         }
 
-        let raw = payload.toString('utf8').replace(/\0+$/g, '').trim();
-        if (!raw) return;
+        const msgStr = payload.toString().replace(/\0+$/g, '').trim();
+        if (!msgStr) return;
 
-        // New robust repair path (handles truncated "signals":)
-        if (raw.includes('"signals"')) {
-            const originalRaw = raw;
-            raw = repairCanJson(raw);
-            if (raw !== originalRaw) {
-                console.log('[vsCANView] 🔧 Repaired CAN JSON (signals).');
-            }
-        }
+        // Raw CAN frame kontrol et (ID#DATA formatı - cansend formatı)
+        if (msgStr.includes('#')) {
+            try {
+                const topicParts = topic.split('/');
+                const idFromTopic = topicParts[topicParts.length - 1];
 
-        if (raw[0] !== '{') {
-            console.warn('[vsCANView] Skipping non-JSON payload topic=', topic, 'sample=', raw.slice(0, 40));
-            return;
-        }
+                console.log(`[vsCANView] 📥 Incoming raw J1939 frame: ${msgStr}`);
+                const signals = decodeCanFrameStr(msgStr);
 
-        let obj: any;
-        try {
-            obj = JSON.parse(raw);
-        } catch (e) {
-            console.error('[vsCANView] Parse failed after repair:', (e as Error).message);
-            return;
-        }
+                // RPM alias yoksa burada da üret (savunmacı)
+                if (signals.EngineSpeed && !signals.EngineRPM) {
+                    signals.EngineRPM = signals.EngineSpeed;
+                }
+                if (signals.EngSpeed && !signals.EngineRPM && !signals.EngineSpeed) {
+                    signals.EngineRPM = signals.EngSpeed;
+                }
 
-        const signals = (obj.signals && typeof obj.signals === 'object') ? obj.signals : {};
+                if (Object.keys(signals).length > 0) {
+                    console.log(`[vsCANView] 🔍 Decoded signals:`, signals);
+                    
+                    const rpmResolved = signals.EngineRPM ?? signals.EngineSpeed ?? signals.EngSpeed;
+                    if (rpmResolved === undefined) {
+                        console.warn('[vsCANView] ⚠️ RPM not resolved from frame:', msgStr);
+                    }
+                    // Webview'a gönderilecek standart veri objesi
+                    const standardizedData = {
+                        id: idFromTopic,
+                        timestamp: Date.now(),
+                        raw: msgStr,
+                        signals: signals,
+                        rpm: rpmResolved ?? 0,
+                        originalData: { signals } // Dashboard.js'in belediği format
+                    };
+                    
+                    // Debug: kısa özet
+                    console.log('[vsCANView] → Webview push RPM=', standardizedData.rpm);
 
-        const norm = (kList: string[], fallbackObj: any[]): number | undefined => {
-            for (const k of kList) {
-                for (const source of fallbackObj) {
-                    if (source && source[k] !== undefined) {
-                        const n = Number(source[k]);
-                        if (!isNaN(n)) return n;
+                    if (panel && panel.webview) {
+                        panel.webview.postMessage({ command: 'canData', data: standardizedData });
+                        console.log(`[vsCANView] 📨 Sent decoded J1939 data to webview`);
                     }
                 }
+                return; // Ham frame işlendi, JSON parse etmeye gerek yok.
+            } catch (e) {
+                console.error(`[vsCANView] ❌ Raw CAN frame decode error:`, e);
             }
-            return undefined;
-        };
+        }
 
-        const standardizedData = {
-            id: obj.id ?? topic.split('/').pop() ?? 'unknown',
-            timestamp: obj.timestamp || obj.ts || Date.now(),
-            bus: obj.bus || 'unknown',
-            raw: obj.raw || '',
-            name: obj.name || '',
-            speed: norm(['VehicleSpeed', 'vehicle_speed', 'speed', 'SPEED'], [signals, obj]) || 0,
-            rpm: norm(['EngineRPM', 'engine_rpm', 'rpm', 'RPM'], [signals, obj]) || 0,
-            engineTemp: norm(['EngineTemp', 'engine_temp'], [signals, obj]) || 0,
-            coolantTemp: norm(['CoolantTemp', 'coolant_temp'], [signals, obj]) || 0,
-            distance: norm(['Distance', 'distance', 'TripDistance'], [signals, obj]) || 0,
-            operationTime: norm(['OperationTime', 'operation_time', 'EngineHours'], [signals, obj]) || 0,
-            fuelRate: norm(['FuelRate', 'fuel_rate'], [signals, obj]) || 0,
-            fuelEco: norm(['FuelEconomy', 'fuel_economy', 'fuel_efficiency'], [signals, obj]) || 0,
-            originalData: obj
-        };
+        // JSON formatını dene
+        if (msgStr.startsWith('{')) {
+            let raw = msgStr;
+            if (raw.includes('"signals"')) {
+                const originalRaw = raw;
+                raw = repairCanJson(raw);
+                if (raw !== originalRaw) {
+                    console.log('[vsCANView] 🔧 Repaired CAN JSON (signals).');
+                }
+            }
 
-        if (panel && panel.webview) {
-            panel.webview.postMessage({ command: 'canData', data: standardizedData });
+            let obj: any;
+            try {
+                obj = JSON.parse(raw);
+            } catch (e) {
+                console.error('[vsCANView] Parse failed after repair:', (e as Error).message);
+                return;
+            }
+
+            const signals = obj.signals || {};
+            // --- FIX: rpm alias (EngSpeed) fallback ---
+            if (signals.EngSpeed && signals.EngineRPM === undefined && signals.EngineSpeed === undefined) {
+                signals.EngineRPM = signals.EngSpeed;
+            }
+
+            const standardizedData = {
+                id: obj.id ?? topic.split('/').pop() ?? 'unknown',
+                timestamp: obj.timestamp || obj.ts || Date.now(),
+                bus: obj.bus || 'unknown',
+                raw: obj.raw || '',
+                name: obj.name || '',
+                // --- FIX: signals objesini webview’a geçir ---
+                signals, // <--- EKLENDİ
+                speed: extractValue(signals, fieldMappings.speed) ?? extractValue(obj, fieldMappings.speed) ?? 0,
+                rpm: extractValue(signals, fieldMappings.rpm) ?? extractValue(obj, fieldMappings.rpm) ?? 0,
+                engineTemp: extractValue(signals, fieldMappings.engineTemp) ?? extractValue(obj, fieldMappings.engineTemp) ?? 0,
+                coolantTemp: extractValue(signals, fieldMappings.coolantTemp) ?? extractValue(obj, fieldMappings.coolantTemp) ?? 0,
+                distance: extractValue(signals, fieldMappings.distance) ?? extractValue(obj, fieldMappings.distance) ?? 0,
+                operationTime: extractValue(signals, fieldMappings.operationTime) ?? extractValue(obj, fieldMappings.operationTime) ?? 0,
+                fuelRate: extractValue(signals, fieldMappings.fuelRate) ?? extractValue(obj, fieldMappings.fuelRate) ?? 0,
+                fuelEco: extractValue(signals, fieldMappings.fuelEco) ?? extractValue(obj, fieldMappings.fuelEco) ?? 0,
+                originalData: obj
+            };
+            console.log('[vsCANView] JSON→std rpm=', standardizedData.rpm, 'signalKeys=', Object.keys(signals));
+
+            // After parsing the message and standardizing
+            console.log('[vsCANView] 📤 Standardized data:', JSON.stringify({
+                speed: standardizedData.speed,
+                distance: standardizedData.distance,
+                operationTime: standardizedData.operationTime,
+                fuelRate: standardizedData.fuelRate,
+                fuelEco: standardizedData.fuelEco
+            }));
+
+            if (panel && panel.webview) {
+                try {
+                    panel.webview.postMessage({ 
+                        command: 'canData', 
+                        data: standardizedData 
+                    });
+                    console.log('[vsCANView] 📤 Message sent to webview');
+                } catch (e) {
+                    console.error('[vsCANView] 🚨 Failed to send message to webview:', e);
+                }
+            } else {
+                console.log('[vsCANView] ⚠️ No webview panel available');
+            }
         }
     });
 

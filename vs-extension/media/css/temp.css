@@ -297,6 +297,10 @@
 
 /* ...existing code... */
 
+#rpm-value {
+  transition: background 0.3s;
+}
+
 .signals-block {
   margin: 6px 0 10px 0;
   background: rgba(255,255,255,0.04);
@@ -390,6 +394,12 @@ details summary::-webkit-details-marker {
   display: none;
 }
 
+/* ...existing code... */
+#gauge, #rpm-gauge, #speed-gauge {
+  width: 100%;
+  height: 140px;
+  display: block;
+}
 /* ...existing code... */
 .fold, .fold .fn { display: none !important; }
 .fold + div { display: block !important; }

@@ -1,150 +1,110 @@
-/**
- * CAN frame decoding utilities
- */
+// CAN frame decode ve test fonksiyonları
 
-/**
- * Extract signals from a raw CAN frame
- * This is a simplified decoder that tries to make sense of raw CAN data
- * 
- * @param rawHex - Raw hexadecimal CAN frame data string
- * @param id - CAN message ID
- * @returns Extracted signal values
- */
-export function decodeRawCanFrame(rawHex: string, id: number | string): any {
-    if (!rawHex) return {};
-    
+// Helper to extract PGN from a 29-bit J1939 CAN ID
+function getJ1939Pgn(id: number): number {
+    // Mask out priority and source address to get the PDU
+    const pdu = (id >> 8) & 0x1FFFF;
+    const pf = (pdu >> 8) & 0xFF; // PDU Format
+    const ps = pdu & 0xFF;       // PDU Specific
+
+    if (pf < 240) {
+        // PGN is in the PF field, PS is destination address
+        return (id >> 8) & 0x1FF00;
+    } else {
+        // PGN is the full PDU
+        return pdu;
+    }
+}
+
+// Parse ve decode raw CAN frame
+export function parseRawCanFrame(frameStr: string): {id: number, data: Buffer} | null {
     try {
-        // Convert ID to numeric
-        const numId = typeof id === 'string' ? parseInt(id, 10) : id;
-        
-        // Clean and parse bytes
-        const bytes = rawHex.replace(/\s+/g, '').match(/.{1,2}/g) || [];
-        const byteValues = bytes.map(b => parseInt(b, 16));
-        
-        console.log(`🔍 Decoding raw CAN frame - ID: 0x${numId.toString(16)}, Bytes: ${byteValues.join(' ')}`);
-        
-        // Handle specific message types
-        switch (numId) {
-            case 0x148:
-            case 328: // Decimal equivalent
-                return decodeVehicleSpeedFrame(byteValues);
-                
-            case 0x1F0:
-            case 496: // Decimal equivalent
-                return decodeEngineDataFrame(byteValues);
-                
-            default:
-                return createDefaultSignals(byteValues);
+        const parts = frameStr.trim().split('#');
+        if (parts.length !== 2) return null;
+        let idStr = parts[0].trim();
+
+        // --- FIX: Hex ID otomatik algılama (A-F içeriyorsa veya uzunluk > 3 ise) ---
+        let id: number;
+        if (/^0x/i.test(idStr)) {
+            id = parseInt(idStr.slice(2), 16);
+        } else if (/^[0-9A-Fa-f]+$/.test(idStr)) {
+            // İçinde A-F varsa veya hepsi hex karakteriyse hex kabul et
+            id = parseInt(idStr, 16);
+        } else {
+            id = parseInt(idStr, 10);
         }
-    } catch (error) {
-        console.error('❌ Error decoding raw CAN frame:', error);
-        return {};
+        if (isNaN(id)) return null;
+
+        const hexData = parts[1].replace(/\s+/g, '');
+        const dataBytes = Buffer.from(hexData, 'hex');
+        return { id, data: dataBytes };
+    } catch (err) {
+        console.error('Failed to parse CAN frame:', err);
+        return null;
     }
 }
 
-/**
- * Decode vehicle speed related CAN frame
- */
-function decodeVehicleSpeedFrame(bytes: number[]): any {
-    const signals: any = {};
+// Main J1939 decoder function
+export function decodeJ1939Frame(frame: {id: number, data: Buffer}): any {
+    if (!frame || !frame.data) return {};
     
-    // Speed is often in the first two bytes (just an example)
-    if (bytes.length >= 2) {
-        // Simple algorithm to extract a plausible speed
-        signals.VehicleSpeed = ((bytes[0] * 256 + bytes[1]) % 240) / 2;
+    const signals: {[key: string]: number} = {};
+    const pgn = getJ1939Pgn(frame.id);
+
+    try {
+        switch (pgn) {
+            // PGN 61444 (0xF004) - EEC1 (Engine Speed, Torque)
+            case 61444:
+                signals.EngineSpeed = frame.data.length >= 5 ? frame.data.readUInt16LE(3) * 0.125 : 0; // SPN 190
+                // --- ALIASES (RPM uyumluluğu) ---
+                signals.EngineRPM = signals.EngineSpeed;
+                signals.EngSpeed = signals.EngineSpeed;
+                // ---------------------------------
+                signals.ActualEngineTorque = frame.data.readUInt8(2) - 125; // SPN 513
+                break;
+
+            // PGN 65265 (0xFEF1) - CCVS (Vehicle Speed)
+            case 65265:
+                signals.VehicleSpeed = frame.data.readUInt16LE(1) / 256.0; // SPN 84
+                break;
+
+            // PGN 65262 (0xFEEF) - ET1 (Engine Coolant Temp)
+            case 65262:
+                signals.EngineCoolantTemp = frame.data.readUInt8(0) - 40; // SPN 110
+                break;
+
+            // PGN 65263 (0xFEF0) - LFE1 (Engine Oil Pressure)
+            case 65263:
+                signals.EngineOilPressure = frame.data.readUInt8(3) * 4; // SPN 100 (kPa)
+                break;
+
+            // PGN 65276 (0xFEFC) - LFC (Fuel Level)
+            case 65276:
+                signals.FuelLevel = frame.data.readUInt8(1) * 0.4; // SPN 96
+                break;
+
+            // PGN 65271 (0xFEF7) - VD (Battery Voltage)
+            case 65271:
+                signals.BatteryVoltage = frame.data.readUInt16LE(4) * 0.05; // SPN 168
+                break;
+
+            // PGN 65248 (0xFEA0) - VDHR (Total Vehicle Distance)
+            case 65248:
+                signals.TotalVehicleDistance = frame.data.readUInt32LE(0) * 0.125; // SPN 245
+                break;
+
+            // PGN 65270 (0xFEF
+        }
+    } catch (err) {
+        console.error('Failed to decode J1939 frame:', err);
     }
-    
-    // Maybe there's brake pressure data in byte 2-3?
-    if (bytes.length >= 4) {
-        signals.BrakePressure = bytes[2] * 2;
-        signals.COUNTER = bytes[3] % 16;
-    }
-    
+
     return signals;
 }
 
-/**
- * Decode engine data related CAN frame
- */
-function decodeEngineDataFrame(bytes: number[]): any {
-    const signals: any = {};
-    
-    // RPM is often 2 bytes
-    if (bytes.length >= 2) {
-        signals.EngineRPM = ((bytes[0] * 256 + bytes[1]) % 8000);
-    }
-    
-    // Temperatures
-    if (bytes.length >= 4) {
-        signals.EngineTemp = bytes[2] % 100 + 20;
-        signals.CoolantTemp = bytes[3] % 100 + 15;
-    }
-    
-    return signals;
-}
-
-/**
- * Create some plausible default signals based on byte values
- */
-function createDefaultSignals(bytes: number[]): any {
-    const signals: any = {};
-    
-    // Use bytes to generate somewhat random but consistent values
-    const sum = bytes.reduce((acc, val) => acc + val, 0);
-    
-    signals.Value1 = sum % 100;
-    signals.Value2 = (sum * 7) % 100;
-    
-    if (bytes.length > 2) {
-        signals.Value3 = ((bytes[0] << 8) + bytes[1]) % 1000;
-    }
-    
-    return signals;
-}
-
-/**
- * Generate test CAN data for a specific ID
- * This creates realistic test data for development/testing
- * 
- * @param id - CAN message ID
- * @returns Generated test data
- */
-export function generateTestCanData(id: number = 0x148): any {
-    // Default values
-    const baseValue = Date.now() % 100;
-    
-    // Generate random but somewhat realistic raw bytes
-    const rawBytes = Array(8).fill(0).map((_, i) => {
-        return Math.floor(Math.random() * 256).toString(16).padStart(2, '0').toUpperCase();
-    });
-    
-    const rawHex = rawBytes.join(' ');
-    
-    // Create base message
-    const message = {
-        bus: "vcan0",
-        dlc: 8,
-        id: id,
-        name: id === 0x148 ? "VehicleSpeed1" : `Message_${id.toString(16)}`,
-        raw: rawHex,
-        ts: Date.now(),
-        signals: {}
-    };
-    
-    // Add signals based on ID
-    if (id === 0x148) {
-        message.signals = {
-            VehicleSpeed: Math.floor(baseValue / 2) + 10,
-            BrakePressure2: Math.floor(baseValue * 2) + 100,
-            COUNTER: baseValue % 16
-        };
-    } else if (id === 0x1F0) {
-        message.signals = {
-            EngineRPM: 700 + Math.floor(baseValue * 30),
-            EngineTemp: 75 + (baseValue % 30),
-            CoolantTemp: 80 + (baseValue % 20)
-        };
-    }
-    
-    return message;
+// --- FIX: Eksikse dışarıdan kullanılacak yardımcı ---
+export function decodeCanFrameStr(frameStr: string): any {
+    const parsed = parseRawCanFrame(frameStr);
+    if (!parsed) return {};
+    return decodeJ1939Frame(parsed);
 }

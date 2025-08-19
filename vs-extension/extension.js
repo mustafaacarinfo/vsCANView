@@ -31,24 +31,51 @@ function ensureMqtt(context) {
   });
 
   c.on('connect', () => {
-    postAll({ type:'conn', ok:true });
-    try { 
-      c.subscribe(cfg.get('topic') || 'can/#'); 
-    } catch (e) {}
+    console.log('✅ MQTT connected successfully to:', url);
+    // Send connection status update immediately when connected
+    postAll({ type: 'conn', ok: true });
+    try {
+      const topic = cfg.get('topic') || 'can/#';
+      c.subscribe(topic);
+      console.log('📡 Subscribed to MQTT topic:', topic);
+    } catch (e) {
+      console.error('❌ MQTT subscription error:', e);
+    }
   });
-  
-  c.on('close', () => postAll({ type:'conn', ok:false }));
-  
+
+  c.on('close', () => {
+    console.log('🔌 MQTT connection closed');
+    postAll({ type: 'conn', ok: false });
+  });
+
+  c.on('offline', () => {
+    console.log('📡 MQTT offline');
+    postAll({ type: 'conn', ok: false });
+  });
+
   c.on('message', (topic, p) => {
-    let obj = null; 
-    try { 
-      obj = JSON.parse(p.toString('utf8')); 
-    } catch {}
-    if (obj) postAll({ type: 'can', topic, payload: obj });
+    let obj = null;
+    const rawMessage = p.toString('utf8');
+    
+    try {
+      obj = JSON.parse(rawMessage);
+    } catch (e) {
+      console.error('❌ MQTT message parsing error:', e);
+      return;
+    }
+    
+    if (obj) {
+      postAll({ type: 'can', topic, payload: obj });
+    }
   });
-  
-  c.on('error', err => vscode.window.showErrorMessage('MQTT error: ' + err.message));
-  client = c; 
+
+  c.on('error', err => {
+    console.error('❌ MQTT error:', err);
+    postAll({ type: 'conn', ok: false });
+    vscode.window.showErrorMessage('MQTT error: ' + err.message);
+  });
+
+  client = c;
   return client;
 }
 

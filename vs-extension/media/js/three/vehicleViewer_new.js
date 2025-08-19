@@ -9,28 +9,28 @@ export class VehicleViewer {
   
   async init(){
     try{
-      // İşlem başlamadan performans kontrolü yapmak için global değişken ekle
+      // Performance check before starting process
       if (!window.performanceWarningShown) {
-        console.log('Performans ölçümleri başlatılıyor...');
+        console.log('Performance measurements starting...');
         window.performanceWarningShown = true;
         this._startTime = performance.now();
       }
       
-      console.log('VehicleViewer başlatılıyor...');
+      console.log('VehicleViewer initializing...');
       console.log('Model URI:', this.modelUri);
       
-      // Yerel Three.js dosyalarını yükleyelim
-      console.log('Three.js yerel dosyalardan yükleniyor...');
+      // Load local Three.js files
+      console.log('Loading Three.js from local files...');
       
       const THREE = await import('./vendor/three.module.js');
-      console.log('THREE.js yüklendi:', THREE);
+      console.log('THREE.js loaded:', THREE);
       
       const { GLTFLoader } = await import('./vendor/GLTFLoader.js');
-      console.log('GLTFLoader yüklendi:', GLTFLoader);
+      console.log('GLTFLoader loaded:', GLTFLoader);
       
       this.THREE = THREE;
-      console.log('Canvas öğesi:', this.canvas);
-  this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true });
+      console.log('Canvas element:', this.canvas);
+      this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true });
       this.renderer.setPixelRatio(window.devicePixelRatio);
       this.renderer.shadowMap.enabled = true;
       this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -118,10 +118,10 @@ export class VehicleViewer {
         }, 
         (progress) => {
           const percent = Math.round((progress.loaded / progress.total) * 100);
-          console.log('Model yükleniyor:', percent + '%');
-          this.notice(`Model yükleniyor: ${percent}%`);
+          console.log('Model loading:', percent + '%');
+          this.notice(`Loading model: ${percent}%`);
           
-          // Yükleme tamamlandıysa mesajı temizle
+          // Clear message when loading is complete
           if (percent === 100) {
             setTimeout(() => {
               this.notice('');
@@ -130,8 +130,8 @@ export class VehicleViewer {
           }
         },
         (error) => { 
-          console.error('Model yükleme hatası:', error);
-          this.notice('GLB yüklenemedi: ' + error.message); 
+          console.error('Model loading error:', error);
+          this.notice('GLB could not be loaded: ' + error.message); 
         }
       );
       
@@ -146,12 +146,12 @@ export class VehicleViewer {
       // Performans ölçüm sonucu
       if (this._startTime) {
         const loadTime = performance.now() - this._startTime;
-        console.log(`VehicleViewer başlatma tamamlandı - süre: ${loadTime.toFixed(2)}ms`);
+        console.log(`VehicleViewer initialization completed - time: ${loadTime.toFixed(2)}ms`);
       }
       
     } catch(e) { 
-      console.error('VehicleViewer başlatma hatası:', e);
-      this.notice('Hata: ' + e.message);
+      console.error('VehicleViewer initialization error:', e);
+      this.notice('Error: ' + e.message);
     }
   }
   

@@ -153,6 +153,15 @@ function clearAllCharts() {
   pressure.clearData();
   fuelRate.clearData();
   
+<<<<<<< HEAD
+=======
+  // Dashboard göstergelerini sıfırla
+  const kpiSpeed = document.getElementById('kpiSpeed');
+  if (kpiSpeed) {
+    kpiSpeed.textContent = "0 km/h";
+  }
+  
+>>>>>>> 089b7e2ca67d38727e9f754c2352bc4c4cc830b5
   // Göstergeleri varsayılan değerlere ayarla
   fuelGauge.setValue(50);
   tGauges.setValues({
@@ -189,7 +198,11 @@ requestAnimationFrame(() => {
 import('./seed.mjs').then(m=>m.seedAll({speed,rpm,gps,pressure,fuelRate,fuelGauge,tGauges}));
 
 // 3D viewer - URI kontrolü ve başlatma
+<<<<<<< HEAD
 let vehicleUri = 'https://vscode-remote%2Bcodespaces-002bredesigned-002dpotato-002d95vggq9656427xvg.vscode-resource.vscode-cdn.net/workspaces/vsCANView/vs-extension/media/vehicle.glb';
+=======
+let vehicleUri = 'https://vscode-remote%2Bwsl-002bubuntu-002d18-002e04.vscode-resource.vscode-cdn.net/home/mustafa/C%2B%2B/vsCANView/vs-extension/media/vehicle.glb';
+>>>>>>> 089b7e2ca67d38727e9f754c2352bc4c4cc830b5
 let viewer = null;
 
 console.log('Vehicle URI kontrol ediliyor:', vehicleUri);
@@ -356,6 +369,7 @@ window.addEventListener('message', (ev) => {
     lastCanMsgTime = Date.now();
     canDot.className = 'dot ok';
 
+<<<<<<< HEAD
     // Aktif sekmeyi kontrol et
     const isActiveDashboard = document.getElementById('page-dash').classList.contains('active');
 
@@ -408,6 +422,159 @@ window.addEventListener('message', (ev) => {
         pushFeed(topic, payload);
       }
     }
+=======
+    // Aktif sekmeyi ve sayfa durumunu kontrol et
+    const isActiveDashboard = document.getElementById('page-dash').classList.contains('active');
+    const isPageVisible = !window.canAppHidden;
+
+    // Çizim optimizasyonu
+    let shouldDraw = isActiveDashboard && isPageVisible;
+    const messageRate = tickCount; // Saniyedeki mesaj sayısı
+    
+    // Mesaj hızına göre adaptif çizim stratejisi
+    if (messageRate < 10) {
+      shouldDraw = shouldDraw && true; // Her mesajı çiz
+    } else if (messageRate < 30) {
+      shouldDraw = shouldDraw && (tickCount % 3 === 0); // Her 3 mesajda bir
+    } else if (messageRate < 60) {
+      shouldDraw = shouldDraw && (tickCount % 5 === 0); // Her 5 mesajda bir
+    } else {
+      shouldDraw = shouldDraw && (tickCount % 10 === 0); // Her 10 mesajda bir
+    }
+    
+    // Veri ekle ve gerektiğinde çiz
+    // Veri işleme ve çizim işlemleri
+    let updatedCharts = new Set();
+    
+    // Hız verisi
+    if((/speed/i.test(topic) && typeof payload.speedKmh === 'number') || 
+       (payload.signals && typeof payload.signals.WheelBasedVehicleSpeed === 'number')) {
+      const speedValue = payload.speedKmh || 
+                        (payload.signals ? payload.signals.WheelBasedVehicleSpeed : undefined);
+      if (speedValue !== undefined) {
+        // Grafik güncelleme
+        speed.pushSample(t, +speedValue);
+        updatedCharts.add(speed);
+        
+        // Dashboard hız göstergesi güncelleme
+        const kpiSpeed = document.getElementById('kpiSpeed');
+        if (kpiSpeed) {
+          const roundedSpeed = Math.round(speedValue);
+          kpiSpeed.textContent = `${roundedSpeed} km/h`;
+        }
+        
+        console.log('Hız değeri güncellendi:', speedValue);
+      }
+    }
+    
+    // Motor RPM
+    if((/rpm/i.test(topic) && typeof payload.rpm === 'number') || 
+       (payload.signals && typeof payload.signals.EngSpeed === 'number')) {
+      const rpmValue = payload.rpm || (payload.signals ? payload.signals.EngSpeed : undefined);
+      if (rpmValue !== undefined) {
+        rpm.pushSample(t, +rpmValue);
+        updatedCharts.add(rpm);
+        console.log('RPM değeri güncellendi:', rpmValue);
+      }
+    }
+    
+    // Basınç değeri
+    if(payload.kpa != null) {
+      pressure.pushSample(t, +payload.kpa);
+      updatedCharts.add(pressure);
+    }
+    
+    // Yakıt tüketimi
+    if(payload.lph != null) {
+      fuelRate.pushSample(t, +payload.lph);
+      updatedCharts.add(fuelRate);
+    }
+    
+    // Sıcaklık göstergeleri
+    if(payload.coolant != null || payload.oil != null || payload.exhaust != null) {
+      tGauges.setValues({
+        coolant: payload.coolant,
+        oil: payload.oil,
+        exhaust: payload.exhaust
+      });
+      updatedCharts.add(tGauges);
+    }
+    
+    // Yakıt seviyesi
+    if(payload.fractionFuel != null) {
+      fuelGauge.setValue(+payload.fractionFuel * 100);
+      updatedCharts.add(fuelGauge);
+    }
+    
+    // GPS konumu
+    if(payload.gps && payload.gps.lat != null && payload.gps.lon != null) {
+      gps.setPoints([...(gps.points||[]), {
+        lat: +payload.gps.lat,
+        lon: +payload.gps.lon
+      }]);
+      updatedCharts.add(gps);
+    }
+    
+    // Toplu çizim güncelleme
+    if(shouldDraw && updatedCharts.size > 0) {
+      requestAnimationFrame(() => {
+        updatedCharts.forEach(chart => chart.draw());
+      });
+    }
+    
+    // Feed verilerini her zaman sakla
+    // Mesaj hızına göre adaptif güncelleme
+    if (messageRate < 20) {
+      // Düşük hızda tüm mesajları ekle
+      pushFeed(topic, payload);
+    } else if (messageRate < 50) {
+      // Orta hızda her 2 mesajda bir ekle
+      tickCount % 2 === 0 && pushFeed(topic, payload);
+    } else {
+      // Yüksek hızda her 3 mesajda bir ekle
+      tickCount % 3 === 0 && pushFeed(topic, payload);
+    }
+    
+    // Feed görünür durumdaysa DOM'u güncelle
+    const isActiveFeed = document.getElementById('page-feed').classList.contains('active');
+    if (isActiveFeed && !feedUpdateScheduled) {
+      feedUpdateScheduled = true;
+      requestAnimationFrame(() => {
+        // Son mesajları görüntüle
+        const fragment = document.createDocumentFragment();
+        const itemsToShow = feedArr.slice(-25);
+        
+        for (const item of itemsToShow) {
+          const row = document.createElement('div');
+          row.className = 'row';
+          
+          const cTime = document.createElement('div');
+          cTime.textContent = item.ts;
+          
+          const cTopic = document.createElement('div');
+          cTopic.className = 'topic';
+          cTopic.textContent = item.topic;
+          
+          const cJson = document.createElement('div');
+          const holder = document.createElement('div');
+          renderJSONTree(holder, item.payload);
+          cJson.appendChild(holder);
+          
+          row.appendChild(cTime);
+          row.appendChild(cTopic);
+          row.appendChild(cJson);
+          
+          fragment.appendChild(row);
+        }
+        
+        // Feed içeriğini temizle ve yeni mesajları ekle
+        feedEl.innerHTML = '';
+        feedEl.appendChild(fragment);
+        
+        feedUpdateScheduled = false;
+      });
+    }
+>>>>>>> 089b7e2ca67d38727e9f754c2352bc4c4cc830b5
   }
 });
 

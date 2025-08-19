@@ -1,445 +1,433 @@
-// Minimal self-contained solution to speed update problem
+import { now } from './core/chartCore.js';
+import { SpeedChart } from './charts/speedChart.js';
+import { RpmChart }   from './charts/rpmChart.js';
+import { GpsChart }   from './charts/gpsChart.js';
+import { PressureChart } from './charts/pressureChart.js';
+import { FuelRateChart } from './charts/fuelRateChart.js';
+import { renderJSONTree } from './core/jsonTree.js';
+import { VehicleViewer } from './three/vehicleViewer_new.js';
+import { FuelGauge } from './charts/arcGauge.js';
+import { TemperatureGauges } from './charts/tempGauges.js';
 
-// Create standalone direct UI updater
-(function installDirectUpdater() {
-  console.log('🚀 Installing direct DOM updater...');
+// Tabs - performans iyileştirmeli
+const tabs = document.querySelectorAll('.tab');
+const pages = { dash: document.getElementById('page-dash'), feed: document.getElementById('page-feed') };
+let isTabSwitching = false;
+
+tabs.forEach(t => t.addEventListener('click', () => {
+  if (isTabSwitching) return; // Sekme geçişi sırasında yeni tıklamaları engelle
+  isTabSwitching = true;
+
+  // Aktif sekmeyi değiştir
+  tabs.forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
   
-  // Create debug UI
-  const debugContainer = document.createElement('div');
-  debugContainer.style.cssText = `
-    position: fixed;
-    top: 0;
-    right: 0;
-    background: #000;
-    color: #0f0;
-    font-family: monospace;
-    font-size: 12px;
-    padding: 10px;
-    border: 1px solid #0f0;
-    z-index: 9999;
-    max-width: 300px;
-    max-height: 300px;
-    overflow: auto;
-  `;
-  debugContainer.innerHTML = '<h4>CAN Debug</h4><div id="can-debug"></div>';
-  document.body.appendChild(debugContainer);
-  
-  // Add direct DOM updater
-  window.updateCAN = function(data) {
-    // Log raw data
-    const debugDiv = document.getElementById('can-debug');
-    if (debugDiv) {
-      const item = document.createElement('div');
-      item.textContent = JSON.stringify(data);
-      item.style.borderBottom = '1px solid #333';
-      item.style.padding = '3px 0';
-      debugDiv.insertBefore(item, debugDiv.firstChild);
-      
-      // Limit entries
-      if (debugDiv.children.length > 10) {
-        debugDiv.removeChild(debugDiv.lastChild);
-      }
-    }
+  // Sayfaları değiştir - RAF kullanarak tarayıcı render sürecini optimize et
+  requestAnimationFrame(() => {
+    Object.values(pages).forEach(p => p.classList.remove('active'));
+    pages[t.dataset.tab]?.classList.add('active');
+    localStorage.setItem('can.tab', t.dataset.tab);
     
-    // Direct update speed elements
-    if ('speed' in data) {
-      const speedElements = [
-        document.getElementById('speed'),
-        document.getElementById('speed-value'),
-        ...Array.from(document.querySelectorAll('[data-metric="speed"]'))
-      ];
-      
-      // Update all speed elements
-      speedElements.filter(Boolean).forEach(el => {
-        if (el) {
-          const formatted = typeof data.speed === 'number' ? 
-            Math.round(data.speed) : data.speed;
-          
-          el.textContent = el.id === 'speed' ? 
-            `${formatted} km/h` : formatted;
-          
-          // Highlight update
-          el.style.transition = 'none';
-          el.style.backgroundColor = '#ff06';
-          setTimeout(() => {
-            el.style.transition = 'background-color 0.5s';
-            el.style.backgroundColor = 'transparent';
-          }, 50);
-        }
-      });
+    // Görünür sayfadaki canvas elementleri için yeniden boyutlandırma tetikle
+    if (t.dataset.tab === 'dash') {
+      speed.draw();
+      rpm.draw();
+      gps.draw();
+      pressure.draw(); 
+      fuelRate.draw();
+      fuelGauge.draw();
+      tGauges.draw();
     }
 
-    // RPM extraction (multi-key)
-    const rpmVal = data.rpm ??
-                   (data.signals && (data.signals.EngineRPM || data.signals.EngineSpeed || data.signals.EngSpeed));
-    if (rpmVal !== undefined) {
-      const rpmNum = Number(rpmVal);
-      const rpmEl = document.getElementById('rpm-value');
-      if (rpmEl && !isNaN(rpmNum)) {
-        rpmEl.textContent = `${Math.round(rpmNum)} RPM`;
-        rpmEl.style.background = '#264653';
-        setTimeout(()=> rpmEl.style.background = 'transparent', 300);
-        console.log('[UI] Applied RPM value:', rpmNum);
-      } else {
-        console.warn('[UI] RPM element missing or invalid value:', rpmVal);
-      }
-    }
-  };
-  
-  // Listen for messages from extension
-  window.addEventListener('message', e => {
-    const msg = e.data;
-    if (!msg || !msg.command) return;
-    
-    if (msg.command === 'canData' && msg.data) {
-      // Call our global updater
-      window.updateCAN(msg.data);
-      
-      // Log to console for debugging
-      console.log(`📥 CAN data received:`, msg.data);
-    }
+    // İşlem tamamlandıktan sonra kilit kaldır
+    setTimeout(() => {
+      isTabSwitching = false;
+    }, 100);
   });
-  
-  // Test with fake data on page load
+}));
+
+// Kayıtlı sekmeyi yükle
+const savedTab = localStorage.getItem('can.tab'); 
+if(savedTab && pages[savedTab]) {
+  // Sayfa yüklendikten sonra sekmeye geç (gecikme ile)
   setTimeout(() => {
-    const testSpeed = Math.floor(Math.random() * 200);
-    console.log(`🧪 Testing with speed=${testSpeed}`);
-    window.updateCAN({speed: testSpeed});
-  }, 1000);
-  
-  console.log('✅ Direct DOM updater installed');
-})();
-
-// Existing code can stay, this runs independently
-
-// Tab switching ve cross-tab veri paylaşımı için minimal çözüm
-
-// Global state for cross-tab updates
-window.canMetrics = {
-  speed: 0,
-  distance: 0,
-  operationTime: 0,
-  fuelRate: 0,
-  fuelEco: 0
-};
-
-// Force update all metric displays regardless of active tab
-function forceUpdateMetrics() {
-  const metrics = window.canMetrics;
-  
-  // Speed updates - try all possible selectors
-  const speedSelectors = [
-    '#speed',
-    '[data-metric="speed"]',
-    '.metric-value[id="speed"]',
-    '.speed-display'
-  ];
-  
-  speedSelectors.forEach(selector => {
-    document.querySelectorAll(selector).forEach(el => {
-      if (el) {
-        el.textContent = `${Math.round(metrics.speed)} km/h`;
-        el.style.color = '#ff0'; // Highlight update
-        setTimeout(() => el.style.color = '', 200);
-      }
-    });
-  });
-  
-  // Other metrics
-  const metricMap = {
-    'distance': `${metrics.distance.toFixed(1)} km`,
-    'operation-time': `${metrics.operationTime.toFixed(1)} h`, 
-    'fuel-rate': `${metrics.fuelRate.toFixed(1)} l/h`,
-    'fuel-eco': `${metrics.fuelEco.toFixed(1)} km/l`
-  };
-  
-  Object.entries(metricMap).forEach(([id, text]) => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.textContent = text;
-      el.style.color = '#ff0';
-      setTimeout(() => el.style.color = '', 200);
-    }
-  });
-
-  const rpmEl = document.getElementById('rpm-value');
-  if (rpmEl && window.lastRpmValue !== undefined) {
-    rpmEl.textContent = `${Math.round(window.lastRpmValue)} RPM`;
-  }
-  
-  console.log('📊 Force updated all metrics:', metrics);
+    document.querySelector(`.tab[data-tab="${savedTab}"]`)?.click();
+  }, 100);
 }
 
-// Tab switching handler
-function initTabSwitching() {
-  document.querySelectorAll('.tab-button').forEach(button => {
-    button.addEventListener('click', () => {
-      const targetTab = button.dataset.tab;
+// Chips persistence
+['busSel','decodeSel','viewSel','rateSel','idFilter'].forEach(id=>{
+  const el = document.getElementById(id);
+  const key = 'can.'+id;
+  const v = localStorage.getItem(key);
+  if(v != null) el.value = v;
+  el.addEventListener('change',()=>localStorage.setItem(key, el.value));
+});
+const decodeSel = document.getElementById('decodeSel');
+const signalSel = document.getElementById('signalSel');
+decodeSel.addEventListener('change',()=>{ signalSel.disabled = decodeSel.value !== 'DBC'; });
+
+document.getElementById('pauseBtn').addEventListener('click', (e)=>{
+  paused = !paused; e.currentTarget.textContent = paused ? '▶ Resume' : '⏸ Pause';
+});
+
+// Sayfa görünürlüğünü takip ederek performans optimizasyonu yap
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    // Sayfa gizli ise güncelleme sıklığını azalt
+    console.log('Sayfa gizli, performans optimizasyonu aktif');
+    window.canAppHidden = true;
+  } else {
+    // Sayfa görünür ise normal güncelleme
+    console.log('Sayfa görünür, normal performansa dönülüyor');
+    window.canAppHidden = false;
+    
+    // Görünür durumdaki charları hemen güncelle
+    if (document.getElementById('page-dash').classList.contains('active')) {
+      speed.draw();
+      rpm.draw();
+      gps.draw();
+      pressure.draw(); 
+      fuelRate.draw();
+      fuelGauge.draw();
+      tGauges.draw();
+    }
+  }
+});
+
+// Status counters
+let total = 0, tickCount=0, paused=false;
+const mqttDot = document.getElementById('mqttDot');
+const canDot = document.getElementById('canDot');
+const connTxt = document.getElementById('connTxt');
+const mpsEl = document.getElementById('mps'); 
+const totalEl = document.getElementById('total'); 
+const lastTopicEl = document.getElementById('lastTopic');
+
+// MQTTve CAN bağlantı durumu izleme
+let lastCanMsgTime = 0;
+let mqttConnected = false;
+
+// Her saniye bağlantı durumunu güncelle
+setInterval(() => { 
+  mpsEl.textContent = tickCount.toString(); 
+  
+  // 5 saniyedir CAN mesajı gelmediyse CAN bağlantısı kesilmiş olabilir
+  const now = Date.now();
+  if (now - lastCanMsgTime > 5000) {
+    canDot.className = 'dot fail';
+  }
+  
+  // Bağlantı durumu metni
+  if (mqttConnected && (now - lastCanMsgTime < 5000)) {
+    connTxt.textContent = 'Bağlantı Kuruldu';
+  } else if (mqttConnected) {
+    connTxt.textContent = 'MQTT Bağlı, CAN Bekleniyor';
+  } else {
+    connTxt.textContent = 'Bağlantı Kesildi';
+  }
+  
+  tickCount = 0; 
+}, 1000);
+
+// Charts - lazy loading ve performance tracking eklenmiş
+const chartInitTime = performance.now();
+console.log('Grafikler yükleniyor...');
+
+const speed = new SpeedChart(document.getElementById('speed'));
+const rpm   = new RpmChart(document.getElementById('rpm'));
+const gps   = new GpsChart(document.getElementById('map'));
+const pressure = new PressureChart(document.getElementById('pressure'));
+const fuelRate = new FuelRateChart(document.getElementById('fuelRate'));
+const fuelGauge = new FuelGauge(document.getElementById('fuel'));
+const tGauges = new TemperatureGauges(document.getElementById('gCoolant'), document.getElementById('gOil'), document.getElementById('gExhaust'));
+
+console.log(`Tüm grafikler yüklendi - süre: ${(performance.now() - chartInitTime).toFixed(2)}ms`);
+
+// Grafikleri temizleme fonksiyonu
+function clearAllCharts() {
+  // Tüm grafiklerin veri noktalarını temizle
+  speed.clearData();
+  rpm.clearData();
+  gps.clearData();
+  pressure.clearData();
+  fuelRate.clearData();
+  
+  // Göstergeleri varsayılan değerlere ayarla
+  fuelGauge.setValue(50);
+  tGauges.setValues({
+    coolant: 90,  // Varsayılan motor sıcaklığı
+    oil: 95,      // Varsayılan yağ sıcaklığı
+    exhaust: 320  // Varsayılan egzoz sıcaklığı
+  });
+  
+  // Grafikleri yeniden çiz
+  speed.draw();
+  rpm.draw();
+  gps.draw();
+  pressure.draw(); 
+  fuelRate.draw();
+  fuelGauge.draw();
+  tGauges.draw();
+}
+
+// Temizleme butonuna tıklama işlevi ekle
+document.getElementById('clearCharts').addEventListener('click', clearAllCharts);
+
+// Grafiklerin ilk çizimini planla
+requestAnimationFrame(() => {
+  speed.draw();
+  rpm.draw();
+  gps.draw();
+  pressure.draw(); 
+  fuelRate.draw();
+  fuelGauge.draw();
+  tGauges.draw();
+});
+
+// Demo seeds
+import('./seed.mjs').then(m=>m.seedAll({speed,rpm,gps,pressure,fuelRate,fuelGauge,tGauges}));
+
+// 3D viewer - URI kontrolü ve başlatma
+let vehicleUri = 'https://vscode-remote%2Bcodespaces-002bredesigned-002dpotato-002d95vggq9656427xvg.vscode-resource.vscode-cdn.net/workspaces/vsCANView/vs-extension/media/vehicle.glb';
+let viewer = null;
+
+console.log('Vehicle URI kontrol ediliyor:', vehicleUri);
+
+// URI placeholder değiştirilmişse direkt başlat
+if (vehicleUri && vehicleUri !== '__VEHICLE_URI__') {
+  console.log('Vehicle URI bulundu, VehicleViewer başlatılıyor:', vehicleUri);
+  startVehicleViewer(vehicleUri);
+} else {
+  console.log('Vehicle URI placeholder henüz değiştirilmemiş');
+  const noticeEl = document.getElementById('vehicleNotice');
+  if (noticeEl) noticeEl.textContent = 'Vehicle model yükleniyor...';
+}
+
+function startVehicleViewer(uri) {
+  // Modeli yükleme işlemi başlıyor - notice'ı tamamen gizle
+  const noticeEl = document.getElementById('vehicleNotice');
+  if (noticeEl) {
+    noticeEl.textContent = '';
+    noticeEl.style.display = 'none'; // Tamamen gizle
+  }
+  
+  viewer = new VehicleViewer(
+    document.getElementById('vehicleCanvas'), 
+    document.getElementById('vehicleNotice'), 
+    uri
+  );
+  console.log('VehicleViewer oluşturuluyor...');
+  viewer.init().then(() => {
+    // Başarıyla yüklenince notice elementinin stil özelliklerini temizle
+    if (noticeEl) noticeEl.style.display = 'none';
+    console.log('VehicleViewer başarıyla başlatıldı');
+  }).catch(err => {
+    // Sadece hata durumunda göster
+    if (noticeEl) {
+      noticeEl.textContent = 'Hata: ' + err.message;
+      noticeEl.style.display = 'block';
+    }
+    console.error('VehicleViewer başlatma hatası:', err);
+  });
+}
+
+// Feed
+const feedEl = document.getElementById('feed');
+const feedArr = [];
+// Feed DOM güncellemeleri için performans optimizasyonu
+let feedUpdateScheduled = false;
+let feedBuffer = [];
+
+function pushFeed(topic, payload){
+  const ts = new Date().toLocaleTimeString();
+  
+  // Önce verilerı tampona ekle
+  feedBuffer.push({ts, topic, payload});
+  feedArr.push({ts, topic, payload});
+  
+  // Fazla verileri temizle
+  while(feedArr.length > 400) feedArr.shift();
+  
+  // Eğer planlı bir güncelleme yoksa, bir tane planla
+  if (!feedUpdateScheduled) {
+    feedUpdateScheduled = true;
+    
+    // requestAnimationFrame ile DOM güncellemelerini optimize et
+    requestAnimationFrame(() => {
+      // Tampondaki tüm verileri ekle
+      const fragment = document.createDocumentFragment();
       
-      // Update active tab button
-      document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-      button.classList.add('active');
+      // Son 25 öğeyi ekle (performans için sınırla)
+      const itemsToAdd = feedBuffer.slice(-25);
       
-      // Update active tab content
-      document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.remove('active');
-      });
-      
-      const targetContent = document.getElementById(targetTab);
-      if (targetContent) {
-        targetContent.classList.add('active');
+      for (const item of itemsToAdd) {
+        const row = document.createElement('div');
+        row.className = 'row';
         
-        // Force metrics update when switching to dashboard
-        if (targetTab === 'dashboard-tab') {
-          setTimeout(forceUpdateMetrics, 100);
-        }
+        const cTime = document.createElement('div');
+        cTime.textContent = item.ts;
+        
+        const cTopic = document.createElement('div');
+        cTopic.className = 'topic';
+        cTopic.textContent = item.topic;
+        
+        const cJson = document.createElement('div');
+        const holder = document.createElement('div');
+        renderJSONTree(holder, item.payload);
+        cJson.appendChild(holder);
+        
+        row.appendChild(cTime);
+        row.appendChild(cTopic);
+        row.appendChild(cJson);
+        
+        fragment.prepend(row);
       }
+      
+      // Fragment'ı bir kerede ekle
+      feedEl.prepend(fragment);
+      
+      // Fazla DOM node'larını temizle
+      while (feedEl.childElementCount > 400) {
+        feedEl.removeChild(feedEl.lastChild);
+      }
+      
+      // Tamponu temizle ve planlama durumunu sıfırla
+      feedBuffer = [];
+      feedUpdateScheduled = false;
     });
-  });
+  }
 }
-
-// Enhanced message handler
-window.addEventListener('message', e => {
-  const msg = e.data;
-  if (!msg || !msg.command) return;
-  
-  if (msg.command === 'canData' && msg.data) {
-    const data = msg.data;
-    
-    // Update global metrics state
-    if ('speed' in data) window.canMetrics.speed = Number(data.speed) || 0;
-    if ('distance' in data) window.canMetrics.distance = Number(data.distance) || 0;
-    if ('operationTime' in data) window.canMetrics.operationTime = Number(data.operationTime) || 0;
-    if ('fuelRate' in data) window.canMetrics.fuelRate = Number(data.fuelRate) || 0;
-    if ('fuelEco' in data) window.canMetrics.fuelEco = Number(data.fuelEco) || 0;
-    
-    // Force update metrics in all tabs
-    forceUpdateMetrics();
-    
-    // Also update CAN feed
-    updateCanFeed(data);
-    
-    console.log('📥 Updated metrics:', window.canMetrics);
-  }
+document.getElementById('clearFeed').addEventListener('click', ()=>{ feedEl.innerHTML=''; feedArr.length=0; });
+document.getElementById('exportFeed').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify(feedArr, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='can-feed.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url), 1000);
 });
 
-// Dashboard ile entegrasyon: mesaj işleyicisi
-window.addEventListener('message', e => {
-  const msg = e.data;
-  if (!msg || !msg.command) return;
+// MQTT bridge - vehicleUri mesajını da yakalayacak şekilde güncellenmiş
+window.addEventListener('message', (ev) => {
+  const msg = ev.data; if(!msg) return;
   
-  if (msg.command === 'canData' && msg.data) {
-    // Mevcut updateCAN fonksiyonunu çağır
-    if (window.updateCAN) {
-      window.updateCAN(msg.data);
-    }
-    
-    // Dashboard sinyal işleyicisini bilgilendir
-    // Bu otomatik olarak yapılıyor, çünkü VehicleDashboard da 'message' olayını dinliyor
-  }
-
-  if (msg.command === 'canData' && msg.data) {
-    console.log('[RAW->UI] Incoming canData keys:', Object.keys(msg.data));
-    if (msg.data.signals) {
-      console.log('[RAW->UI] Signal keys:', Object.keys(msg.data.signals));
-    }
-  }
-});
-
-// Simplified CAN feed updater
-function updateCanFeed(data) {
-  const feed = document.getElementById('can-messages');
-  if (!feed) return;
-  
-  const item = document.createElement('div');
-  item.className = 'can-message';
-  
-  // Check if raw CAN frame
-  const isRawFrame = data.raw && data.raw.includes('#');
-  
-  item.innerHTML = `
-    <div class="message-header">
-      <span class="timestamp">${new Date().toLocaleTimeString()}</span>
-      <span class="message-id">${isRawFrame ? 'RAW' : 'JSON'} | ID: ${data.id}</span>
-    </div>
-    <div class="message-data">
-      ${isRawFrame ? 
-        `<strong>Frame:</strong> ${data.raw}<br><strong>Speed:</strong> ${data.speed} km/h` :
-        `<pre>${JSON.stringify({speed: data.speed, distance: data.distance}, null, 2)}</pre>`
+  // Vehicle URI mesajı kontrolü ekle
+  if (msg.type === 'vehicleUri' && msg.uri) {
+    console.log('MQTT Listener\'da Vehicle URI alındı:', msg.uri);
+    if (!viewer) {
+      // Yazıyı gizle
+      const noticeEl = document.getElementById('vehicleNotice');
+      if (noticeEl) {
+        noticeEl.textContent = '';
+        noticeEl.style.display = 'none';
       }
-    </div>
-  `;
-  
-  feed.insertBefore(item, feed.firstChild);
-  
-  // Limit messages
-  const messages = feed.querySelectorAll('.can-message');
-  if (messages.length > 50) {
-    messages[messages.length - 1].remove();
-  }
-}
-
-// Initialize everything on DOM load
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('🚀 Initializing cross-tab CAN viewer...');
-  
-  initTabSwitching();
-  
-  // Test with initial values
-  setTimeout(() => {
-    window.canMetrics.speed = 42;
-    forceUpdateMetrics();
-  }, 500);
-  
-  console.log('✅ Cross-tab CAN viewer initialized');
-});
-
-// Debug helper - manual speed test
-window.testSpeed = function(speed) {
-  window.canMetrics.speed = speed;
-  forceUpdateMetrics();
-  console.log(`🧪 Test speed set to: ${speed}`);
-};
-
-// --- Simple Gauge Renderer (lightweight) ---
-function drawSemiGauge(canvasId, value, min, max, color) {
-  const cvs = document.getElementById(canvasId);
-  if (!cvs) return;
-  const ctx = cvs.getContext('2d');
-  const w = cvs.width = cvs.clientWidth || 220;
-  const h = cvs.height = cvs.clientHeight || 120;
-  ctx.clearRect(0,0,w,h);
-  const cx = w/2, cy = h*0.95;
-  const r = Math.min(w*0.45, h*0.9);
-  const start = Math.PI, end = 2*Math.PI;
-  // background
-  ctx.lineWidth = r*0.18;
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-  ctx.beginPath(); ctx.arc(cx,cy,r,start,end); ctx.stroke();
-  // value
-  const pct = (Math.max(min, Math.min(max, value)) - min)/(max-min);
-  ctx.strokeStyle = color;
-  ctx.beginPath(); ctx.arc(cx,cy,r,start,start + (end-start)*pct); ctx.stroke();
-  // needle
-  const ang = start + (end-start)*pct;
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(cx,cy);
-  ctx.lineTo(cx + r*0.9*Math.cos(ang), cy + r*0.9*Math.sin(ang));
-  ctx.stroke();
-}
-
-// Cache last draw to avoid over-draw storms
-let _lastRpmDraw = 0;
-let _lastSpeedDraw = 0;
-
-// Extend updateCAN to draw gauges
-const _origUpdateCAN = window.updateCAN;
-window.updateCAN = function(data) {
-  _origUpdateCAN && _origUpdateCAN(data);
-
-  // RPM
-  const rpmVal = data.rpm ??
-    (data.signals && (data.signals.EngineRPM || data.signals.EngineSpeed || data.signals.EngSpeed));
-  if (rpmVal !== undefined) {
-    window.lastRpmValue = rpmVal;
-    const now = performance.now();
-    if (now - _lastRpmDraw > 120) {
-      drawSemiGauge('rpm-gauge', Number(rpmVal), 0, 8000, '#f59e0b');
-      _lastRpmDraw = now;
-      console.log('[Gauge] RPM gauge updated:', rpmVal);
+      
+      viewer = new VehicleViewer(
+        document.getElementById('vehicleCanvas'), 
+        document.getElementById('vehicleNotice'), 
+        msg.uri
+      );
+      console.log('VehicleViewer oluşturuluyor...');
+      viewer.init().then(() => {
+        console.log('VehicleViewer başlatıldı');
+        // Burada da gizle
+        if (noticeEl) noticeEl.style.display = 'none';
+      }).catch(err => {
+        console.error('VehicleViewer başlatma hatası:', err);
+        // Sadece hata durumunda göster
+        if (noticeEl) {
+          noticeEl.textContent = 'Hata: ' + err.message;
+          noticeEl.style.display = 'block';
+        }
+      });
     }
+    return;
   }
+  
+  if(msg.type === 'conn'){ 
+    const ok = !!msg.ok; 
+    mqttDot.className = 'dot ' + (ok ? 'ok' : 'fail');
+    mqttConnected = ok;
+    return; 
+  }
+  if(msg.type === 'can' && !paused){
+    const { topic, payload } = msg;
+    const t = (payload.t) ? +payload.t : now();
+    total++; tickCount++; totalEl.textContent = total.toString(); lastTopicEl.textContent = topic;
+    
+    // CAN mesajı alındı, CAN bağlantısını güncelle
+    lastCanMsgTime = Date.now();
+    canDot.className = 'dot ok';
 
-  // Speed (optional)
-  if (data.speed !== undefined) {
-    const now = performance.now();
-    if (now - _lastSpeedDraw > 200) {
-      drawSemiGauge('speed-gauge', Number(data.speed), 0, 220, '#3b82f6');
-      _lastSpeedDraw = now;
+    // Aktif sekmeyi kontrol et
+    const isActiveDashboard = document.getElementById('page-dash').classList.contains('active');
+
+    // Sadece görünür durumdaysa ve CAN veri hızı yüksekse çizim işlemlerini optimize et
+    let shouldDraw = isActiveDashboard && (tickCount % 3 === 0); // Her 3 mesajda bir çizim yap
+    const isHighRate = totalEl.textContent > 20; // Saniyede 20+ mesaj geliyorsa yüksek hız
+
+    // Yüksek hızda daha az çizim
+    if (isHighRate) {
+      shouldDraw = shouldDraw && (tickCount % 5 === 0); // Yüksek hızda her 15 mesajda bir çiz
     }
-  }
-};
-
-// Ensure gauge canvases exist (idempotent)
-function ensureGaugeCanvas(id, label, afterId) {
-  if (document.getElementById(id)) return;
-  const dash = document.getElementById('dashboard-tab');
-  if (!dash) return;
-  const wrap = document.createElement('div');
-  wrap.className = 'gauge-container';
-  wrap.innerHTML = `
-    <h3>${label}</h3>
-    <canvas id="${id}"></canvas>
-    <div id="${id.replace('-gauge','')}-value" class="metric-value">0</div>
-  `;
-  dash.querySelector('.dashboard-grid')?.appendChild(wrap);
-  console.warn('[UI] Injected missing gauge canvas:', id);
-}
-
-// Call once DOM ready
-document.addEventListener('DOMContentLoaded', () => {
-  ensureGaugeCanvas('rpm-gauge','Engine RPM');
-  ensureGaugeCanvas('speed-gauge','Vehicle Speed');
-});
-
-// Wrap original updateCAN AFTER its definition
-const __origUpdateCANInternal = window.updateCAN;
-window.updateCAN = function(data){
-  ensureGaugeCanvas('rpm-gauge','Engine RPM');
-  ensureGaugeCanvas('speed-gauge','Vehicle Speed');
-  __origUpdateCANInternal && __origUpdateCANInternal(data);
-
-  // Force immediate gauge redraw if values present but earlier width was 0
-  if (window.lastRpmValue !== undefined) {
-     drawSemiGauge('rpm-gauge', Number(window.lastRpmValue), 0, 8000, '#f59e0b');
-  }
-  if (data.speed !== undefined) {
-     drawSemiGauge('speed-gauge', Number(data.speed), 0, 220, '#3b82f6');
-  }
-};
-
-// Ek debug: ilk 5 mesajda sinyal isimlerini özetle
-let _msgCountDebug = 0;
-window.addEventListener('message', e => {
-  const m = e.data;
-  if (m?.command === 'canData') {
-    if (_msgCountDebug < 5) {
-      console.log('[DEBUG canData] rpm field =', m.data.rpm,
-                  'signal keys=', m.data.signals ? Object.keys(m.data.signals) : 'none');
-      _msgCountDebug++;
+    
+    // Veri ekle ve gerektiğinde çiz
+    if(/speed/i.test(topic) && typeof payload.speedKmh === 'number') { 
+      speed.pushSample(t, +payload.speedKmh); 
+      if (shouldDraw) speed.draw();
+    }
+    if(/rpm/i.test(topic) && typeof payload.rpm === 'number') { 
+      rpm.pushSample(t, +payload.rpm); 
+      if (shouldDraw) rpm.draw();
+    }
+    if(payload.kpa != null) { 
+      pressure.pushSample(t, +payload.kpa); 
+      if (shouldDraw) pressure.draw();
+    }
+    if(payload.lph != null) { 
+      fuelRate.pushSample(t, +payload.lph); 
+      if (shouldDraw) fuelRate.draw();
+    }
+    if(payload.coolant!=null || payload.oil!=null || payload.exhaust!=null){
+      tGauges.setValues({coolant: payload.coolant, oil: payload.oil, exhaust: payload.exhaust});
+      if (shouldDraw) tGauges.draw();
+    }
+    if(payload.fractionFuel != null){ 
+      fuelGauge.setValue(+payload.fractionFuel*100);
+      if (shouldDraw) fuelGauge.draw();
+    }
+    if(payload.gps && payload.gps.lat != null && payload.gps.lon != null){
+      gps.setPoints([...(gps.points||[]), {lat:+payload.gps.lat, lon:+payload.gps.lon}]);
+      if (shouldDraw) gps.draw();
+    }
+    
+    // Feed sayfası aktifse veya düşük veri hızı varsa her mesajı ekle
+    const isActiveFeed = document.getElementById('page-feed').classList.contains('active');
+    if (isActiveFeed || !isHighRate) {
+      pushFeed(topic, payload);
+    } else {
+      // Yüksek hızda ve feed görünür değilse, ara sıra ekle
+      if (tickCount % 5 === 0) {
+        pushFeed(topic, payload);
+      }
     }
   }
 });
 
-// Manuel test helper
-window.testRPM = function(v= (500+Math.random()*3000)|0){
-  window.updateCAN({ rpm: v, signals:{ EngineRPM:v } });
-  console.log('[TEST] Inject RPM', v);
-};
-
-// İlk animasyon (gauge boşsa görünür hale getir)
-setTimeout(()=> {
-  if (document.getElementById('rpm-gauge')) {
-    drawSemiGauge('rpm-gauge', 0, 0, 8000, '#f59e0b');
-    drawSemiGauge('speed-gauge', 0, 0, 220, '#3b82f6');
-    console.log('[INIT] Gauges primed.');
-  }
-}, 400);
-
-// On resize redraw
-window.addEventListener('resize', () => {
-  if (window.lastRpmValue !== undefined) {
-    drawSemiGauge('rpm-gauge', window.lastRpmValue, 0, 8000, '#f59e0b');
-  }
-});
-
-// Initial lazy draw
-document.addEventListener('DOMContentLoaded', () => {
-  setTimeout(() => {
-    drawSemiGauge('rpm-gauge', 0, 0, 8000, '#f59e0b');
-    drawSemiGauge('speed-gauge', 0, 0, 220, '#3b82f6');
-  }, 300);
+// Resize - performans optimizasyonlu
+let resizeTimeout = null;
+window.addEventListener('resize', () => { 
+  // Resize işlemlerini optimize et - çoklu çağrıları engelle
+  if (resizeTimeout) clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
+    if (activeTab === 'dash' || !activeTab) {
+      // Görünür sayfadaki canvas elementleri için yeniden boyutlandırma tetikle
+      speed.draw(); 
+      rpm.draw(); 
+      gps.draw(); 
+      pressure.draw(); 
+      fuelRate.draw(); 
+      fuelGauge.draw(); 
+      tGauges.draw();
+    }
+    resizeTimeout = null;
+  }, 250); // 250ms gecikme ile yeniden boyutlandırma olaylarını birleştir
 });

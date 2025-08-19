@@ -9,26 +9,26 @@ import { VehicleViewer } from './three/vehicleViewer_new.js';
 import { FuelGauge } from './charts/arcGauge.js';
 import { TemperatureGauges } from './charts/tempGauges.js';
 
-// Tabs - performance optimized
+// Tabs - performans iyileştirmeli
 const tabs = document.querySelectorAll('.tab');
 const pages = { dash: document.getElementById('page-dash'), feed: document.getElementById('page-feed') };
 let isTabSwitching = false;
 
 tabs.forEach(t => t.addEventListener('click', () => {
-  if (isTabSwitching) return; // Prevent new clicks during tab switching
+  if (isTabSwitching) return; // Sekme geçişi sırasında yeni tıklamaları engelle
   isTabSwitching = true;
 
-  // Change active tab
+  // Aktif sekmeyi değiştir
   tabs.forEach(x => x.classList.remove('active'));
   t.classList.add('active');
   
-  // Switch pages - optimize browser rendering using RAF
+  // Sayfaları değiştir - RAF kullanarak tarayıcı render sürecini optimize et
   requestAnimationFrame(() => {
     Object.values(pages).forEach(p => p.classList.remove('active'));
     pages[t.dataset.tab]?.classList.add('active');
     localStorage.setItem('can.tab', t.dataset.tab);
     
-    // Trigger resize for canvas elements on visible page
+    // Görünür sayfadaki canvas elementleri için yeniden boyutlandırma tetikle
     if (t.dataset.tab === 'dash') {
       speed.draw();
       rpm.draw();
@@ -39,17 +39,17 @@ tabs.forEach(t => t.addEventListener('click', () => {
       tGauges.draw();
     }
 
-    // Remove lock after operation is complete
+    // İşlem tamamlandıktan sonra kilit kaldır
     setTimeout(() => {
       isTabSwitching = false;
     }, 100);
   });
 }));
 
-// Load saved tab
+// Kayıtlı sekmeyi yükle
 const savedTab = localStorage.getItem('can.tab'); 
 if(savedTab && pages[savedTab]) {
-  // Switch to tab after page load (with delay)
+  // Sayfa yüklendikten sonra sekmeye geç (gecikme ile)
   setTimeout(() => {
     document.querySelector(`.tab[data-tab="${savedTab}"]`)?.click();
   }, 100);
@@ -71,16 +71,18 @@ document.getElementById('pauseBtn').addEventListener('click', (e)=>{
   paused = !paused; e.currentTarget.textContent = paused ? '▶ Resume' : '⏸ Pause';
 });
 
-// Visibility tracking for performance optimization
+// Sayfa görünürlüğünü takip ederek performans optimizasyonu yap
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    // Reduce update frequency when page is hidden
+    // Sayfa gizli ise güncelleme sıklığını azalt
+    console.log('Sayfa gizli, performans optimizasyonu aktif');
     window.canAppHidden = true;
   } else {
-    // Normal updates when page is visible
+    // Sayfa görünür ise normal güncelleme
+    console.log('Sayfa görünür, normal performansa dönülüyor');
     window.canAppHidden = false;
     
-    // Immediately update visible charts
+    // Görünür durumdaki charları hemen güncelle
     if (document.getElementById('page-dash').classList.contains('active')) {
       speed.draw();
       rpm.draw();
@@ -102,34 +104,35 @@ const mpsEl = document.getElementById('mps');
 const totalEl = document.getElementById('total'); 
 const lastTopicEl = document.getElementById('lastTopic');
 
-// MQTT and CAN connection status monitoring
+// MQTTve CAN bağlantı durumu izleme
 let lastCanMsgTime = 0;
 let mqttConnected = false;
 
-// Update connection status every second
+// Her saniye bağlantı durumunu güncelle
 setInterval(() => { 
   mpsEl.textContent = tickCount.toString(); 
   
-  // If no CAN message for 5 seconds, CAN connection might be lost
+  // 5 saniyedir CAN mesajı gelmediyse CAN bağlantısı kesilmiş olabilir
   const now = Date.now();
   if (now - lastCanMsgTime > 5000) {
     canDot.className = 'dot fail';
   }
   
-  // Connection status text
+  // Bağlantı durumu metni
   if (mqttConnected && (now - lastCanMsgTime < 5000)) {
-    connTxt.textContent = 'Connected';
+    connTxt.textContent = 'Bağlantı Kuruldu';
   } else if (mqttConnected) {
-    connTxt.textContent = 'MQTT Connected, Waiting CAN';
+    connTxt.textContent = 'MQTT Bağlı, CAN Bekleniyor';
   } else {
-    connTxt.textContent = 'Disconnected';
+    connTxt.textContent = 'Bağlantı Kesildi';
   }
   
   tickCount = 0; 
 }, 1000);
 
-// Charts - lazy loading and performance tracking added
+// Charts - lazy loading ve performance tracking eklenmiş
 const chartInitTime = performance.now();
+console.log('Grafikler yükleniyor...');
 
 const speed = new SpeedChart(document.getElementById('speed'));
 const rpm   = new RpmChart(document.getElementById('rpm'));
@@ -139,78 +142,45 @@ const fuelRate = new FuelRateChart(document.getElementById('fuelRate'));
 const fuelGauge = new FuelGauge(document.getElementById('fuel'));
 const tGauges = new TemperatureGauges(document.getElementById('gCoolant'), document.getElementById('gOil'), document.getElementById('gExhaust'));
 
-// Function to clear all charts - COMPLETELY REWRITE THIS FUNCTION
+console.log(`Tüm grafikler yüklendi - süre: ${(performance.now() - chartInitTime).toFixed(2)}ms`);
+
+// Grafikleri temizleme fonksiyonu
 function clearAllCharts() {
+  // Tüm grafiklerin veri noktalarını temizle
+  speed.clearData();
+  rpm.clearData();
+  gps.clearData();
+  pressure.clearData();
+  fuelRate.clearData();
   
-  try {
-    // Clear all chart data with explicit calls
-    if (speed && typeof speed.clearData === 'function') {
-      speed.clearData();
-    }
-    
-    if (rpm && typeof rpm.clearData === 'function') {
-      rpm.clearData();
-    }
-    
-    if (gps && typeof gps.clearData === 'function') {
-      gps.clearData();
-    }
-    
-    if (pressure && typeof pressure.clearData === 'function') {
-      pressure.clearData();
-    }
-    
-    if (fuelRate && typeof fuelRate.clearData === 'function') {
-      fuelRate.clearData();
-    }
-    
-    // Reset gauges to default values
-    if (fuelGauge && typeof fuelGauge.setValue === 'function') {
-      fuelGauge.setValue(50);
-    }
-    
-    if (tGauges && typeof tGauges.clear === 'function') {
-      tGauges.clear();
-    }
-    
-    // Force immediate redraw of all charts
-    setTimeout(() => {
-      if (speed) speed.draw();
-      if (rpm) rpm.draw();
-      if (gps) gps.draw();
-      if (pressure) pressure.draw();
-      if (fuelRate) fuelRate.draw();
-      if (fuelGauge) fuelGauge.draw();
-      if (tGauges) tGauges.draw();
-    }, 100);
-    
-  } catch (error) {
-    console.error('Error clearing charts:', error);
+  // Dashboard göstergelerini sıfırla
+  const kpiSpeed = document.getElementById('kpiSpeed');
+  if (kpiSpeed) {
+    kpiSpeed.textContent = "0 km/h";
   }
-}
-
-// Make sure the button event listener is properly attached
-document.addEventListener('DOMContentLoaded', () => {
-  const clearButton = document.getElementById('clearCharts');
-  if (clearButton) {
-    clearButton.addEventListener('click', () => {
-      clearAllCharts();
-    });
-  } else {
-    console.error('Clear button not found!');
-  }
-});
-
-// Also add immediate listener in case DOM is already loaded
-const clearButton = document.getElementById('clearCharts');
-if (clearButton) {
-  clearButton.removeEventListener('click', clearAllCharts); // Remove any existing
-  clearButton.addEventListener('click', () => {
-    clearAllCharts();
+  
+  // Göstergeleri varsayılan değerlere ayarla
+  fuelGauge.setValue(50);
+  tGauges.setValues({
+    coolant: 90,  // Varsayılan motor sıcaklığı
+    oil: 95,      // Varsayılan yağ sıcaklığı
+    exhaust: 320  // Varsayılan egzoz sıcaklığı
   });
+  
+  // Grafikleri yeniden çiz
+  speed.draw();
+  rpm.draw();
+  gps.draw();
+  pressure.draw(); 
+  fuelRate.draw();
+  fuelGauge.draw();
+  tGauges.draw();
 }
 
-// Schedule initial drawing of charts
+// Temizleme butonuna tıklama işlevi ekle
+document.getElementById('clearCharts').addEventListener('click', clearAllCharts);
+
+// Grafiklerin ilk çizimini planla
 requestAnimationFrame(() => {
   speed.draw();
   rpm.draw();
@@ -224,24 +194,28 @@ requestAnimationFrame(() => {
 // Demo seeds
 import('./seed.mjs').then(m=>m.seedAll({speed,rpm,gps,pressure,fuelRate,fuelGauge,tGauges}));
 
-// 3D viewer - URI check and initialization
+// 3D viewer - URI kontrolü ve başlatma
 let vehicleUri = 'https://vscode-remote%2Bwsl-002bubuntu-002d18-002e04.vscode-resource.vscode-cdn.net/home/mustafa/C%2B%2B/vsCANView/vs-extension/media/vehicle.glb';
 let viewer = null;
 
-// Vehicle URI message check
+console.log('Vehicle URI kontrol ediliyor:', vehicleUri);
+
+// URI placeholder değiştirilmişse direkt başlat
 if (vehicleUri && vehicleUri !== '__VEHICLE_URI__') {
+  console.log('Vehicle URI bulundu, VehicleViewer başlatılıyor:', vehicleUri);
   startVehicleViewer(vehicleUri);
 } else {
+  console.log('Vehicle URI placeholder henüz değiştirilmemiş');
   const noticeEl = document.getElementById('vehicleNotice');
-  if (noticeEl) noticeEl.textContent = 'Loading vehicle model...';
+  if (noticeEl) noticeEl.textContent = 'Vehicle model yükleniyor...';
 }
 
 function startVehicleViewer(uri) {
-  // Model loading process starting - completely hide notice
+  // Modeli yükleme işlemi başlıyor - notice'ı tamamen gizle
   const noticeEl = document.getElementById('vehicleNotice');
   if (noticeEl) {
     noticeEl.textContent = '';
-    noticeEl.style.display = 'none';
+    noticeEl.style.display = 'none'; // Tamamen gizle
   }
   
   viewer = new VehicleViewer(
@@ -249,44 +223,48 @@ function startVehicleViewer(uri) {
     document.getElementById('vehicleNotice'), 
     uri
   );
+  console.log('VehicleViewer oluşturuluyor...');
   viewer.init().then(() => {
+    // Başarıyla yüklenince notice elementinin stil özelliklerini temizle
     if (noticeEl) noticeEl.style.display = 'none';
+    console.log('VehicleViewer başarıyla başlatıldı');
   }).catch(err => {
-    // Show only on error
+    // Sadece hata durumunda göster
     if (noticeEl) {
-      noticeEl.textContent = 'Error: ' + err.message;
+      noticeEl.textContent = 'Hata: ' + err.message;
       noticeEl.style.display = 'block';
     }
+    console.error('VehicleViewer başlatma hatası:', err);
   });
 }
 
 // Feed
 const feedEl = document.getElementById('feed');
 const feedArr = [];
-// Feed DOM updates performance optimization
+// Feed DOM güncellemeleri için performans optimizasyonu
 let feedUpdateScheduled = false;
 let feedBuffer = [];
 
 function pushFeed(topic, payload){
   const ts = new Date().toLocaleTimeString();
   
-  // Add data to buffer first
+  // Önce verilerı tampona ekle
   feedBuffer.push({ts, topic, payload});
   feedArr.push({ts, topic, payload});
   
-  // Clean up excess data
+  // Fazla verileri temizle
   while(feedArr.length > 400) feedArr.shift();
   
-  // If no update is scheduled, schedule one
+  // Eğer planlı bir güncelleme yoksa, bir tane planla
   if (!feedUpdateScheduled) {
     feedUpdateScheduled = true;
     
-    // Optimize DOM updates with requestAnimationFrame
+    // requestAnimationFrame ile DOM güncellemelerini optimize et
     requestAnimationFrame(() => {
-      // Add all buffered data
+      // Tampondaki tüm verileri ekle
       const fragment = document.createDocumentFragment();
       
-      // Add last 25 items (limit for performance)
+      // Son 25 öğeyi ekle (performans için sınırla)
       const itemsToAdd = feedBuffer.slice(-25);
       
       for (const item of itemsToAdd) {
@@ -312,15 +290,15 @@ function pushFeed(topic, payload){
         fragment.prepend(row);
       }
       
-      // Add fragment in one go
+      // Fragment'ı bir kerede ekle
       feedEl.prepend(fragment);
       
-      // Clean up excess DOM nodes
+      // Fazla DOM node'larını temizle
       while (feedEl.childElementCount > 400) {
         feedEl.removeChild(feedEl.lastChild);
       }
       
-      // Clear buffer and reset scheduling state
+      // Tamponu temizle ve planlama durumunu sıfırla
       feedBuffer = [];
       feedUpdateScheduled = false;
     });
@@ -332,14 +310,15 @@ document.getElementById('exportFeed').addEventListener('click', ()=>{
   const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='can-feed.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url), 1000);
 });
 
-// MQTT bridge - updated to also capture vehicleUri message
+// MQTT bridge - vehicleUri mesajını da yakalayacak şekilde güncellenmiş
 window.addEventListener('message', (ev) => {
   const msg = ev.data; if(!msg) return;
   
-  // Vehicle URI message check
+  // Vehicle URI mesajı kontrolü ekle
   if (msg.type === 'vehicleUri' && msg.uri) {
+    console.log('MQTT Listener\'da Vehicle URI alındı:', msg.uri);
     if (!viewer) {
-      // Hide text
+      // Yazıyı gizle
       const noticeEl = document.getElementById('vehicleNotice');
       if (noticeEl) {
         noticeEl.textContent = '';
@@ -351,12 +330,16 @@ window.addEventListener('message', (ev) => {
         document.getElementById('vehicleNotice'), 
         msg.uri
       );
+      console.log('VehicleViewer oluşturuluyor...');
       viewer.init().then(() => {
+        console.log('VehicleViewer başlatıldı');
+        // Burada da gizle
         if (noticeEl) noticeEl.style.display = 'none';
       }).catch(err => {
-        console.error('VehicleViewer initialization error:', err);
+        console.error('VehicleViewer başlatma hatası:', err);
+        // Sadece hata durumunda göster
         if (noticeEl) {
-          noticeEl.textContent = 'Error: ' + err.message;
+          noticeEl.textContent = 'Hata: ' + err.message;
           noticeEl.style.display = 'block';
         }
       });
@@ -370,93 +353,178 @@ window.addEventListener('message', (ev) => {
     mqttConnected = ok;
     return; 
   }
-  
   if(msg.type === 'can' && !paused){
     const { topic, payload } = msg;
     const t = (payload.t) ? +payload.t : now();
     total++; tickCount++; totalEl.textContent = total.toString(); lastTopicEl.textContent = topic;
     
-    // CAN message received, update CAN connection
+    // CAN mesajı alındı, CAN bağlantısını güncelle
     lastCanMsgTime = Date.now();
     canDot.className = 'dot ok';
 
-    // Check active tab
+    // Aktif sekmeyi ve sayfa durumunu kontrol et
     const isActiveDashboard = document.getElementById('page-dash').classList.contains('active');
-    let shouldDraw = isActiveDashboard && (tickCount % 2 === 0);
+    const isPageVisible = !window.canAppHidden;
+
+    // Çizim optimizasyonu
+    let shouldDraw = isActiveDashboard && isPageVisible;
+    const messageRate = tickCount; // Saniyedeki mesaj sayısı
     
-    // Process speed data
-    if(/speed/i.test(topic) && typeof payload.speedKmh === 'number') { 
-      speed.pushSample(t, +payload.speedKmh); 
-      if (shouldDraw) speed.draw();
-    } else if (payload.speed != null) {
-      speed.pushSample(t, +payload.speed);
-      if (shouldDraw) speed.draw();
-    } else if (payload.velocity != null) {
-      speed.pushSample(t, +payload.velocity);
-      if (shouldDraw) speed.draw();
-    }
-    
-    // Process RPM data
-    if(/rpm/i.test(topic) && typeof payload.rpm === 'number') { 
-      rpm.pushSample(t, +payload.rpm); 
-      if (shouldDraw) rpm.draw();
-    } else if (payload.engineRpm != null) {
-      rpm.pushSample(t, +payload.engineRpm);
-      if (shouldDraw) rpm.draw();
+    // Mesaj hızına göre adaptif çizim stratejisi
+    if (messageRate < 10) {
+      shouldDraw = shouldDraw && true; // Her mesajı çiz
+    } else if (messageRate < 30) {
+      shouldDraw = shouldDraw && (tickCount % 3 === 0); // Her 3 mesajda bir
+    } else if (messageRate < 60) {
+      shouldDraw = shouldDraw && (tickCount % 5 === 0); // Her 5 mesajda bir
+    } else {
+      shouldDraw = shouldDraw && (tickCount % 10 === 0); // Her 10 mesajda bir
     }
     
-    // Process other data
-    if(payload.kpa != null) { 
-      pressure.pushSample(t, +payload.kpa); 
-      if (shouldDraw) pressure.draw();
+    // Veri ekle ve gerektiğinde çiz
+    // Veri işleme ve çizim işlemleri
+    let updatedCharts = new Set();
+    
+    // Hız verisi
+    if((/speed/i.test(topic) && typeof payload.speedKmh === 'number') || 
+       (payload.signals && typeof payload.signals.WheelBasedVehicleSpeed === 'number')) {
+      const speedValue = payload.speedKmh || 
+                        (payload.signals ? payload.signals.WheelBasedVehicleSpeed : undefined);
+      if (speedValue !== undefined) {
+        // Grafik güncelleme
+        speed.pushSample(t, +speedValue);
+        updatedCharts.add(speed);
+        
+        // Dashboard hız göstergesi güncelleme
+        const kpiSpeed = document.getElementById('kpiSpeed');
+        if (kpiSpeed) {
+          const roundedSpeed = Math.round(speedValue);
+          kpiSpeed.textContent = `${roundedSpeed} km/h`;
+        }
+        
+        console.log('Hız değeri güncellendi:', speedValue);
+      }
     }
-    if(payload.lph != null) { 
-      fuelRate.pushSample(t, +payload.lph); 
-      if (shouldDraw) fuelRate.draw();
+    
+    // Motor RPM
+    if((/rpm/i.test(topic) && typeof payload.rpm === 'number') || 
+       (payload.signals && typeof payload.signals.EngSpeed === 'number')) {
+      const rpmValue = payload.rpm || (payload.signals ? payload.signals.EngSpeed : undefined);
+      if (rpmValue !== undefined) {
+        rpm.pushSample(t, +rpmValue);
+        updatedCharts.add(rpm);
+        console.log('RPM değeri güncellendi:', rpmValue);
+      }
     }
-    if(payload.coolant!=null || payload.oil!=null || payload.exhaust!=null){
-      const coolantVal = payload.coolant != null ? Math.max(0, Math.min(150, +payload.coolant)) : null;
-      const oilVal = payload.oil != null ? Math.max(0, Math.min(150, +payload.oil)) : null;
-      const exhaustVal = payload.exhaust != null ? Math.max(0, Math.min(800, +payload.exhaust)) : null;
-      
+    
+    // Basınç değeri
+    if(payload.kpa != null) {
+      pressure.pushSample(t, +payload.kpa);
+      updatedCharts.add(pressure);
+    }
+    
+    // Yakıt tüketimi
+    if(payload.lph != null) {
+      fuelRate.pushSample(t, +payload.lph);
+      updatedCharts.add(fuelRate);
+    }
+    
+    // Sıcaklık göstergeleri
+    if(payload.coolant != null || payload.oil != null || payload.exhaust != null) {
       tGauges.setValues({
-        coolant: coolantVal, 
-        oil: oilVal, 
-        exhaust: exhaustVal
+        coolant: payload.coolant,
+        oil: payload.oil,
+        exhaust: payload.exhaust
       });
-      if (shouldDraw) tGauges.draw();
-    }
-    if(payload.fractionFuel != null){ 
-      const fuelPercent = Math.max(0, Math.min(100, +payload.fractionFuel * 100));
-      fuelGauge.setValue(fuelPercent);
-      if (shouldDraw) fuelGauge.draw();
-    } else if (payload.fuel != null) {
-      const fuelPercent = Math.max(0, Math.min(100, +payload.fuel));
-      fuelGauge.setValue(fuelPercent);
-      if (shouldDraw) fuelGauge.draw();
-    }
-    if(payload.gps && payload.gps.lat != null && payload.gps.lon != null){
-      gps.setPoints([...(gps.points||[]), {lat:+payload.gps.lat, lon:+payload.gps.lon}]);
-      if (shouldDraw) gps.draw();
+      updatedCharts.add(tGauges);
     }
     
-    // Add to feed if feed page is active or occasionally
-    const isActiveFeed = document.getElementById('page-feed').classList.contains('active');
-    if (isActiveFeed || tickCount % 3 === 0) {
+    // Yakıt seviyesi
+    if(payload.fractionFuel != null) {
+      fuelGauge.setValue(+payload.fractionFuel * 100);
+      updatedCharts.add(fuelGauge);
+    }
+    
+    // GPS konumu
+    if(payload.gps && payload.gps.lat != null && payload.gps.lon != null) {
+      gps.setPoints([...(gps.points||[]), {
+        lat: +payload.gps.lat,
+        lon: +payload.gps.lon
+      }]);
+      updatedCharts.add(gps);
+    }
+    
+    // Toplu çizim güncelleme
+    if(shouldDraw && updatedCharts.size > 0) {
+      requestAnimationFrame(() => {
+        updatedCharts.forEach(chart => chart.draw());
+      });
+    }
+    
+    // Feed verilerini her zaman sakla
+    // Mesaj hızına göre adaptif güncelleme
+    if (messageRate < 20) {
+      // Düşük hızda tüm mesajları ekle
       pushFeed(topic, payload);
+    } else if (messageRate < 50) {
+      // Orta hızda her 2 mesajda bir ekle
+      tickCount % 2 === 0 && pushFeed(topic, payload);
+    } else {
+      // Yüksek hızda her 3 mesajda bir ekle
+      tickCount % 3 === 0 && pushFeed(topic, payload);
+    }
+    
+    // Feed görünür durumdaysa DOM'u güncelle
+    const isActiveFeed = document.getElementById('page-feed').classList.contains('active');
+    if (isActiveFeed && !feedUpdateScheduled) {
+      feedUpdateScheduled = true;
+      requestAnimationFrame(() => {
+        // Son mesajları görüntüle
+        const fragment = document.createDocumentFragment();
+        const itemsToShow = feedArr.slice(-25);
+        
+        for (const item of itemsToShow) {
+          const row = document.createElement('div');
+          row.className = 'row';
+          
+          const cTime = document.createElement('div');
+          cTime.textContent = item.ts;
+          
+          const cTopic = document.createElement('div');
+          cTopic.className = 'topic';
+          cTopic.textContent = item.topic;
+          
+          const cJson = document.createElement('div');
+          const holder = document.createElement('div');
+          renderJSONTree(holder, item.payload);
+          cJson.appendChild(holder);
+          
+          row.appendChild(cTime);
+          row.appendChild(cTopic);
+          row.appendChild(cJson);
+          
+          fragment.appendChild(row);
+        }
+        
+        // Feed içeriğini temizle ve yeni mesajları ekle
+        feedEl.innerHTML = '';
+        feedEl.appendChild(fragment);
+        
+        feedUpdateScheduled = false;
+      });
     }
   }
 });
 
-// Resize - performance optimized
+// Resize - performans optimizasyonlu
 let resizeTimeout = null;
 window.addEventListener('resize', () => { 
-  // Optimize resize operations - prevent multiple calls
+  // Resize işlemlerini optimize et - çoklu çağrıları engelle
   if (resizeTimeout) clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(() => {
     const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
     if (activeTab === 'dash' || !activeTab) {
-      // Trigger resize for canvas elements on visible page
+      // Görünür sayfadaki canvas elementleri için yeniden boyutlandırma tetikle
       speed.draw(); 
       rpm.draw(); 
       gps.draw(); 
@@ -466,5 +534,5 @@ window.addEventListener('resize', () => {
       tGauges.draw();
     }
     resizeTimeout = null;
-  }, 250); // Merge resize events with 250ms delay
+  }, 250); // 250ms gecikme ile yeniden boyutlandırma olaylarını birleştir
 });

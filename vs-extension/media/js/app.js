@@ -8,6 +8,7 @@ import { renderJSONTree } from './core/jsonTree.js';
 import { VehicleViewer } from './three/vehicleViewer_new.js';
 import { FuelGauge } from './charts/arcGauge.js';
 import { TemperatureGauges } from './charts/tempGauges.js';
+import { EngineGauges } from './charts/engineGauges.js';
 
 // Tabs - performans iyileştirmeli
 const tabs = document.querySelectorAll('.tab');
@@ -141,6 +142,7 @@ const pressure = new PressureChart(document.getElementById('pressure'));
 const fuelRate = new FuelRateChart(document.getElementById('fuelRate'));
 const fuelGauge = new FuelGauge(document.getElementById('fuel'));
 const tGauges = new TemperatureGauges(document.getElementById('gCoolant'), document.getElementById('gOil'), document.getElementById('gExhaust'));
+const engineGauges = new EngineGauges(document.getElementById('oilPressure'), document.getElementById('batteryVoltage'), document.getElementById('intakeManifold'));
 
 console.log(`Tüm grafikler yüklendi - süre: ${(performance.now() - chartInitTime).toFixed(2)}ms`);
 
@@ -153,9 +155,24 @@ function clearAllCharts() {
   pressure.clearData();
   fuelRate.clearData();
   
+  // Dashboard göstergelerini sıfırla
+  const kpiSpeed = document.getElementById('kpiSpeed');
+  if (kpiSpeed) {
+    kpiSpeed.textContent = "0 km/h";
+  }
+  
   // Göstergeleri varsayılan değerlere ayarla
   fuelGauge.setValue(50);
-  tGauges.clear();
+  tGauges.setValues({
+    coolant: 90,  // Varsayılan motor sıcaklığı
+    oil: 95,      // Varsayılan yağ sıcaklığı
+    exhaust: 320  // Varsayılan egzoz sıcaklığı
+  });
+  engineGauges.setValues({
+    oilPressure: 100,    // Varsayılan yağ basıncı
+    batteryVoltage: 24,  // Varsayılan akü voltajı
+    intakeManifold: 100  // Varsayılan manifold basıncı
+  });
   
   // Grafikleri yeniden çiz
   speed.draw();
@@ -165,6 +182,7 @@ function clearAllCharts() {
   fuelRate.draw();
   fuelGauge.draw();
   tGauges.draw();
+  engineGauges.draw();
 }
 
 // Temizleme butonuna tıklama işlevi ekle
@@ -376,15 +394,35 @@ window.addEventListener('message', (ev) => {
     let updatedCharts = new Set();
     
     // Hız verisi
-    if(/speed/i.test(topic) && typeof payload.speedKmh === 'number') {
-      speed.pushSample(t, +payload.speedKmh);
-      updatedCharts.add(speed);
+    if((/speed/i.test(topic) && typeof payload.speedKmh === 'number') || 
+       (payload.signals && typeof payload.signals.WheelBasedVehicleSpeed === 'number')) {
+      const speedValue = payload.speedKmh || 
+                        (payload.signals ? payload.signals.WheelBasedVehicleSpeed : undefined);
+      if (speedValue !== undefined) {
+        // Grafik güncelleme
+        speed.pushSample(t, +speedValue);
+        updatedCharts.add(speed);
+        
+        // Dashboard hız göstergesi güncelleme
+        const kpiSpeed = document.getElementById('kpiSpeed');
+        if (kpiSpeed) {
+          const roundedSpeed = Math.round(speedValue);
+          kpiSpeed.textContent = `${roundedSpeed} km/h`;
+        }
+        
+        console.log('Hız değeri güncellendi:', speedValue);
+      }
     }
     
     // Motor RPM
-    if(/rpm/i.test(topic) && typeof payload.rpm === 'number') {
-      rpm.pushSample(t, +payload.rpm);
-      updatedCharts.add(rpm);
+    if((/rpm/i.test(topic) && typeof payload.rpm === 'number') || 
+       (payload.signals && typeof payload.signals.EngSpeed === 'number')) {
+      const rpmValue = payload.rpm || (payload.signals ? payload.signals.EngSpeed : undefined);
+      if (rpmValue !== undefined) {
+        rpm.pushSample(t, +rpmValue);
+        updatedCharts.add(rpm);
+        console.log('RPM değeri güncellendi:', rpmValue);
+      }
     }
     
     // Basınç değeri
@@ -397,6 +435,36 @@ window.addEventListener('message', (ev) => {
     if(payload.lph != null) {
       fuelRate.pushSample(t, +payload.lph);
       updatedCharts.add(fuelRate);
+    }
+    
+    // Motor parametreleri
+    if(payload.signals) {
+      const signals = payload.signals;
+      let engineUpdated = false;
+      const engineValues = {};
+      
+      // Yağ basıncı (SPN 100)
+      if(typeof signals.EngOilPress === 'number') {
+        engineValues.oilPressure = signals.EngOilPress;
+        engineUpdated = true;
+      }
+      
+      // Akü voltajı (SPN 168)
+      if(typeof signals.BattVolt === 'number') {
+        engineValues.batteryVoltage = signals.BattVolt;
+        engineUpdated = true;
+      }
+      
+      // Manifold basıncı (SPN 102)
+      if(typeof signals.IntakeManifoldPress === 'number') {
+        engineValues.intakeManifold = signals.IntakeManifoldPress;
+        engineUpdated = true;
+      }
+      
+      if(engineUpdated) {
+        engineGauges.setValues(engineValues);
+        updatedCharts.add(engineGauges);
+      }
     }
     
     // Sıcaklık göstergeleri
@@ -431,26 +499,57 @@ window.addEventListener('message', (ev) => {
       });
     }
     
-    // Feed verilerinin işlenmesi
-    const isActiveFeed = document.getElementById('page-feed').classList.contains('active');
-    
-    // Feed görünürlüğü ve mesaj hızına göre adaptif güncelleme
-    if (isActiveFeed) {
-      if (messageRate < 20) {
-        // Düşük hızda tüm mesajları göster
-        pushFeed(topic, payload);
-      } else if (messageRate < 50) {
-        // Orta hızda her 3 mesajda bir
-        tickCount % 3 === 0 && pushFeed(topic, payload);
-      } else {
-        // Yüksek hızda her 5 mesajda bir
-        tickCount % 5 === 0 && pushFeed(topic, payload);
-      }
+    // Feed verilerini her zaman sakla
+    // Mesaj hızına göre adaptif güncelleme
+    if (messageRate < 20) {
+      // Düşük hızda tüm mesajları ekle
+      pushFeed(topic, payload);
+    } else if (messageRate < 50) {
+      // Orta hızda her 2 mesajda bir ekle
+      tickCount % 2 === 0 && pushFeed(topic, payload);
     } else {
-      // Feed görünür değilse sadece önemli mesajları sakla
-      if (tickCount % 10 === 0) {
-        pushFeed(topic, payload);
-      }
+      // Yüksek hızda her 3 mesajda bir ekle
+      tickCount % 3 === 0 && pushFeed(topic, payload);
+    }
+    
+    // Feed görünür durumdaysa DOM'u güncelle
+    const isActiveFeed = document.getElementById('page-feed').classList.contains('active');
+    if (isActiveFeed && !feedUpdateScheduled) {
+      feedUpdateScheduled = true;
+      requestAnimationFrame(() => {
+        // Son mesajları görüntüle
+        const fragment = document.createDocumentFragment();
+        const itemsToShow = feedArr.slice(-25);
+        
+        for (const item of itemsToShow) {
+          const row = document.createElement('div');
+          row.className = 'row';
+          
+          const cTime = document.createElement('div');
+          cTime.textContent = item.ts;
+          
+          const cTopic = document.createElement('div');
+          cTopic.className = 'topic';
+          cTopic.textContent = item.topic;
+          
+          const cJson = document.createElement('div');
+          const holder = document.createElement('div');
+          renderJSONTree(holder, item.payload);
+          cJson.appendChild(holder);
+          
+          row.appendChild(cTime);
+          row.appendChild(cTopic);
+          row.appendChild(cJson);
+          
+          fragment.appendChild(row);
+        }
+        
+        // Feed içeriğini temizle ve yeni mesajları ekle
+        feedEl.innerHTML = '';
+        feedEl.appendChild(fragment);
+        
+        feedUpdateScheduled = false;
+      });
     }
   }
 });

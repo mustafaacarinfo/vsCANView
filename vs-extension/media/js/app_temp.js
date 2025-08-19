@@ -155,7 +155,11 @@ function clearAllCharts() {
   
   // Göstergeleri varsayılan değerlere ayarla
   fuelGauge.setValue(50);
-  tGauges.clear();
+  tGauges.setValues({
+    coolant: 90,  // Varsayılan motor sıcaklığı
+    oil: 95,      // Varsayılan yağ sıcaklığı
+    exhaust: 320  // Varsayılan egzoz sıcaklığı
+  });
   
   // Grafikleri yeniden çiz
   speed.draw();

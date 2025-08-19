@@ -52,7 +52,8 @@
     "rpm   viewer"
     "gps   temps"
     "pressure fuelrate"
-    "tempGauges tempGauges";
+    "tempGauges tempGauges"
+    "engineGauges engineGauges";
 }
 .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;min-height:120px}
 .ph{display:flex;justify-content:space-between;align-items:center;color:#9fb0c4;border-bottom:1px solid var(--border);padding:8px 10px}
@@ -63,6 +64,7 @@
 .gps{grid-area:gps} .temps{grid-area:temps}
 .pressure{grid-area:pressure} .fuelrate{grid-area:fuelrate}
 .tempGauges{grid-area:tempGauges}
+.engineGauges{grid-area:engineGauges}
 
 .kpi-wrap{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
 .kpi{background:#0f1520;border:1px solid var(--border);border-radius:10px;padding:12px}

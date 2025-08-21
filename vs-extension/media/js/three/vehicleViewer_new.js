@@ -1,3 +1,44 @@
+// Statik importlar bazı VSCode webview ortamlarında specifier hatası ürettiği için
+// dinamik import fallback uygulanıyor.
+let THREE, GLTFLoader;
+async function loadThreeStack(){
+  if(THREE && GLTFLoader) return;
+  try {
+    const m = await import('./vendor/three.module.js?v=2');
+    THREE = m;
+  } catch(e){
+    console.error('[viewer] three.module dyn import fail:', e.message);
+    throw e;
+  }
+  try {
+    console.time('[viewer] GLTFLoader import');
+    // Mutlak yol sağlam import için
+    const absPath = new URL('./vendor/GLTFLoader.js', import.meta.url).href;
+    console.log('[viewer] GLTFLoader yolu:', absPath);
+    const gltfMod = await import(absPath + '?v=7');
+    console.timeEnd('[viewer] GLTFLoader import');
+    if (!gltfMod || !gltfMod.GLTFLoader) throw new Error('GLTFLoader export missing');
+    GLTFLoader = gltfMod.GLTFLoader;
+    console.log('[viewer] Full GLTFLoader yüklendi (tam özellik)');
+  } catch(fullErr){
+    console.warn('[viewer] Full GLTFLoader import HATA:', fullErr && fullErr.message);
+    // Kullanıcıya kısa not
+    try {
+      const absPathMinimal = new URL('./vendor/gltfMinimalLoader.js', import.meta.url).href;
+      console.log('[viewer] MinimalLoader yolu:', absPathMinimal);
+      const { GLTFMinimalLoader } = await import(absPathMinimal + '?v=3');
+      GLTFLoader = GLTFMinimalLoader;
+      console.warn('[viewer] Minimal loader devrede (sınırlı özellik).');
+      if (this && typeof this.notice === 'function') {
+        this.notice('Basit modeller (tam olmayan kalite)');
+      }
+    } catch(minErr){
+      console.error('[viewer] Minimal loader da import edilemedi:', minErr && minErr.stack);
+      throw minErr;
+    }
+  }
+}
+
 export class VehicleViewer {
   constructor(canvas, noticeEl, modelUri){
     this.canvas=canvas; 
@@ -19,28 +60,40 @@ export class VehicleViewer {
       console.log('VehicleViewer initializing...');
       console.log('Model URI:', this.modelUri);
       
-      // Load local Three.js files
-      console.log('Loading Three.js from local files...');
-      
-      const THREE = await import('./vendor/three.module.js');
-      console.log('THREE.js loaded:', THREE);
-      
-      const { GLTFLoader } = await import('./vendor/GLTFLoader.js');
-      console.log('GLTFLoader loaded:', GLTFLoader);
-      
-      this.THREE = THREE;
+  await loadThreeStack();
+  console.log('Three.js & GLTFLoader dinamik yüklendi');
+  this.THREE = THREE;
       console.log('Canvas element:', this.canvas);
-      this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true });
-      this.renderer.setPixelRatio(window.devicePixelRatio);
-      this.renderer.shadowMap.enabled = true;
-      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  // Panel arka plan rengi ile eşleştir (#0e131a)
+  // Renderer oluşturulurken antialias ve shadow gibi pahalı opsiyonları
+  // cihaz kapasitesine göre sonradan açıp kapatabileceğimiz bir yapı kuruyoruz.
+  // Renderer kalitesi artırıldı - antialiasing açıldı (daha keskin görüntü)
+  this.renderer = new THREE.WebGLRenderer({ 
+    canvas: this.canvas, 
+    antialias: true, // Kenarları yumuşat
+    alpha: true, 
+    powerPreference:'high-performance',
+    precision: 'highp' // Yüksek hassasiyet
+  });
+  this._maxPixelRatio = Math.min(1.5, window.devicePixelRatio || 1); // Üst sınır
+  this._minPixelRatio = 0.8; // Alt sınır (çok düşmesin)
+  this._currentPixelRatio = Math.min(window.devicePixelRatio || 1, this._maxPixelRatio);
+  this.renderer.setPixelRatio(this._currentPixelRatio);
+  
+  // Gölge kalitesi - gerekirse aktifleştirebiliriz
+  this.renderer.shadowMap.enabled = false; 
+  this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  
+  // Panel arka plan rengi ile eşleştir (#0e131a) - mavi-siyah karışımı
   this.renderer.setClearColor(0x0e131a, 1);
-      console.log('WebGL Renderer oluşturuldu:', this.renderer);
+  this.renderer.outputEncoding = THREE.sRGBEncoding; // Doğru renk
+  console.log('WebGL Renderer oluşturuldu:', this.renderer);
       
-      this.scene = new THREE.Scene();
+  this.scene = new THREE.Scene();
   // Chart/panel teması ile aynı arka plan
   this.scene.background = new THREE.Color(0x0e131a);
+  
+  // Hafif bir sis efekti - derinlik hissi
+  this.scene.fog = new THREE.Fog(0x0e131a, 10, 25);
       console.log('Scene oluşturuldu:', this.scene);
       
   // Tüm modeli taşıyacağımız kök grup (rota/zoom buna uygulanacak)
@@ -55,18 +108,27 @@ export class VehicleViewer {
       // Mouse kontrolleri ekle (basit versiyonu)
       this.addMouseControls();
       
-      // Işıkları ekle
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      // Işıklandırma sistemi iyileştirildi - 3 nokta aydınlatma
+      
+      // 1. Ana Dolgu Işığı (Environment) - Gölgeleri hafifletip genel aydınlatma
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Güç arttı
       this.scene.add(ambientLight);
       
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      directionalLight.position.set(10, 10, 5);
-      directionalLight.castShadow = true;
-      this.scene.add(directionalLight);
+      // 2. Ana Işık (Key Light) - Önden/üstten gelen ana ışık
+      const mainLight = new THREE.DirectionalLight(0xffffff, 0.8); // Beyaz, güçlü
+      mainLight.position.set(3, 6, 8); // Önden ve yukarıdan
+      mainLight.castShadow = false; // Gölge isteğe bağlı aktifleştirilebilir
+      this.scene.add(mainLight);
       
-      const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
-      fillLight.position.set(-10, -10, -5);
+      // 3. Dolgu Işık (Fill Light) - Gölgeleri yumuşatmak için
+      const fillLight = new THREE.DirectionalLight(0xccccff, 0.5); // Hafif mavi ton
+      fillLight.position.set(-6, 2, -2); // Ters açıdan
       this.scene.add(fillLight);
+      
+      // 4. Vurgu Işığı (Rim Light) - Arkadan gelip konturu vurgular
+      const rimLight = new THREE.DirectionalLight(0xffffee, 0.6); // Hafif sarı ton
+      rimLight.position.set(0, 8, -12); // Arkadan ve yukarıdan
+      this.scene.add(rimLight);
       
       console.log('Işıklar eklendi');
       
@@ -89,8 +151,16 @@ export class VehicleViewer {
           console.log('Model merkezi:', center);
           console.log('Model boyutu:', size);
           
-          // Modeli dünya orijinine ortala
+          // Önce merkezi resetleyip doğru konumlandırma
+          gltf.scene.position.set(0, 0, 0);
+          
+          // Model yönlendirmeyi düzelt (aracı doğru açıda göster)
+          gltf.scene.rotation.set(0, Math.PI * 0.5, 0); // 90 derece döndür (yan değil önden görünüm)
+          
+          // Sonra modeli dünya orijinine ortala
           gltf.scene.position.sub(center);
+          // Y eksenini hafifçe yukarı kaydır (yer düzleminden yukarıda göster)
+          gltf.scene.position.y += size.y * 0.4;
           
           // Model çok büyükse ölçekle
           const maxDimension = Math.max(size.x, size.y, size.z);
@@ -99,6 +169,28 @@ export class VehicleViewer {
             gltf.scene.scale.setScalar(scale);
             console.log('Model ölçeklendirildi:', scale);
           }
+          
+          // Malzeme kalitesini artır
+          gltf.scene.traverse(obj => {
+            if (obj.isMesh) {
+              // Gölgeler için
+              obj.castShadow = true;
+              obj.receiveShadow = true;
+              
+              // Materyal varsa kaliteyi artır
+              if (obj.material) {
+                if (Array.isArray(obj.material)) {
+                  obj.material.forEach(mat => {
+                    mat.envMapIntensity = 0.8;
+                    mat.needsUpdate = true;
+                  });
+                } else {
+                  obj.material.envMapIntensity = 0.8;
+                  obj.material.needsUpdate = true;
+                }
+              }
+            }
+          });
           
           this.root.add(gltf.scene);
           this.vehicleModel = gltf.scene;
@@ -114,6 +206,8 @@ export class VehicleViewer {
           this.camera.position.copy(dir.multiplyScalar(fitDist));
           this.camera.lookAt(0,0,0);
           this.camera.updateProjectionMatrix();
+          // Derinlik materyalleri vs derlenerek ilk kare gecikmesi azaltılır
+          this.renderer.compile(this.scene, this.camera);
           this.animate(); 
         }, 
         (progress) => {
@@ -243,11 +337,15 @@ export class VehicleViewer {
     console.log('Animasyon başlatılıyor...');
     
     // Performans için değişkenler
-    this.lastFrameTime = 0;
-    this.frameDelta = 0;
-    this.targetFps = 30; // FPS sınırı
-    this.frameInterval = 1000 / this.targetFps;
-    this.isVisible = true;
+  this.lastFrameTime = 0;
+  this.frameDelta = 0;
+  this.targetFps = 60; // Daha akıcı hedef FPS
+  this.frameInterval = 1000 / this.targetFps;
+  this.isVisible = true;
+  this._adaptiveCounter = 0; // Adaptif kalite kontrol
+  this._slowFrames = 0;
+  this._fastFrames = 0;
+  this._qualityLevel = 1; // 0: düşük, 1: orta, 2: yüksek
     
     // Görünürlük durumu takibi için
     this.visibilityObserver = new IntersectionObserver((entries) => {
@@ -260,27 +358,48 @@ export class VehicleViewer {
     
     const render = (timestamp) => { 
       requestAnimationFrame(render);
-      
-      // Element görünür değilse render etmeyi atla
-      if (!this.isVisible) return;
-      
-      // FPS sınırlama - daha az kaynak kullanımı için
+      if (!this.isVisible) return; // Görünmüyorsa hiçbir şey yapma
+
+      // FPS sınırlama & ölçüm
       this.frameDelta = timestamp - this.lastFrameTime;
-      if (this.frameDelta < this.frameInterval) return;
+      if (this.frameDelta < this.frameInterval) return; // hedef FPS üzerinde çalış
+      const realFps = 1000 / this.frameDelta;
       this.lastFrameTime = timestamp - (this.frameDelta % this.frameInterval);
-      
+
+      // Adaptif kalite (her 60 ölçümde bir ayar dene)
+      this._adaptiveCounter++;
+      if (realFps < this.targetFps * 0.7) this._slowFrames++; else this._slowFrames = Math.max(0, this._slowFrames-1);
+      if (realFps > this.targetFps * 0.9) this._fastFrames++; else this._fastFrames = Math.max(0, this._fastFrames-1);
+      if (this._adaptiveCounter >= 60) { // ~1 sn (60 fps hedefi varsayımı)
+        if (this._slowFrames > 15 && this._currentPixelRatio > this._minPixelRatio) {
+          // Yavaş -> kalite düşür
+            this._currentPixelRatio = Math.max(this._minPixelRatio, (this._currentPixelRatio - 0.1));
+            this.renderer.setPixelRatio(this._currentPixelRatio);
+            // Çok yavaşsa gölgeleri kapat
+            if (this.renderer.shadowMap.enabled && this._currentPixelRatio <= (this._minPixelRatio + 0.05)) {
+              this.renderer.shadowMap.enabled = false;
+            }
+        } else if (this._fastFrames > 40 && this._currentPixelRatio < this._maxPixelRatio) {
+          // Hızlı -> kalite artır (güneş gölgesi isteğe bağlı tekrar açılabilir)
+            this._currentPixelRatio = Math.min(this._maxPixelRatio, (this._currentPixelRatio + 0.1));
+            this.renderer.setPixelRatio(this._currentPixelRatio);
+            if (!this.renderer.shadowMap.enabled && this._currentPixelRatio > 1.2) {
+              this.renderer.shadowMap.enabled = true; // yeterince hızlıysa aç
+            }
+        }
+        this._adaptiveCounter = 0; this._slowFrames = 0; this._fastFrames = 0;
+      }
+
       // Auto-rotate: 3sn inaktif ise hedef dönüşü arttır
       if (this.vehicleModel && this.root) {
         const idle = Date.now() - (this.lastMouseActivity||0) > 3000 && !this.isMouseDown;
-        if (idle) {
-          this.targetRotationY += this.autoRotationSpeed;
-        }
-        // Hedefe yumuşak yaklaşım (lerp)
-        this.root.rotation.y += (this.targetRotationY - this.root.rotation.y) * 0.1;
-        this.root.rotation.x += (this.targetRotationX - this.root.rotation.x) * 0.1;
+        if (idle) this.targetRotationY += this.autoRotationSpeed;
+        // Lerp ile yumuşak hareket
+        this.root.rotation.y += (this.targetRotationY - this.root.rotation.y) * 0.12;
+        this.root.rotation.x += (this.targetRotationX - this.root.rotation.x) * 0.12;
       }
-      
-      this.renderer.render(this.scene, this.camera); 
+
+      this.renderer.render(this.scene, this.camera);
     }; 
     
     render(0); 

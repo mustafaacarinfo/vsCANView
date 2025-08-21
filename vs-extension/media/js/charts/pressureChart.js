@@ -2,7 +2,7 @@ import { LineChart, now } from '../core/chartCore.js';
 
 export class PressureChart extends LineChart {
   constructor(canvas) {
-    super(canvas, '#34d399');
+  super(canvas, '#34d399', { showLastTimestamp:false, referenceLines:[{ value:50, label:'50', color:'#64748b', dash:[6,4] }], autoMidline:true, showTimeAxis:true, timeAxisFormat:'HH:MM' });
     this.points = [];
     this.setRange(now()-60, now());
   }

@@ -2,7 +2,8 @@
   "name": "can-debugger-modular",
   "displayName": "CAN Debugger (Modular)",
   "description": "Modüler webview: Speed, RPM, GPS, Fuel/Pressure/FuelRate, Temperature charts + gauges, 3D Vehicle, Live Feed (pretty JSON), status & filters.",
-  "version": "0.9.0",
+  "version": "0.9.1",
+  "icon": "images/icon.png",
   "publisher": "your-name",
   "engines": {
     "vscode": "^1.84.0"
@@ -45,11 +46,8 @@
       }
     }
   },
-  "scripts": {
-    "postinstall": "node tools/copy-three.js"
-  },
+  "scripts": {},
   "dependencies": {
-    "mqtt": "^4.3.7",
-    "three": "^0.137.0"
+    "mqtt": "^4.3.7"
   }
 }

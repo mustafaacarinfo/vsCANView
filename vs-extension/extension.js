@@ -130,7 +130,11 @@ class Dashboard {
     const uiPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'index.html');
     let html = fs.readFileSync(uiPath.fsPath, 'utf8');
     
-    const csp = `default-src 'none'; img-src ${wv.cspSource} data: blob:; style-src ${wv.cspSource} 'unsafe-inline'; script-src ${wv.cspSource} 'unsafe-eval'; connect-src ${wv.cspSource} blob:; worker-src blob:;`;
+  // CSP genişletildi: OSM tile sunucusu ve (isteğe bağlı) HTTPS fetch izinleri eklendi
+  // Harita fetch() çağrıları connect-src kapsamına girer, img-src de güvenli olsun diye domain eklenir.
+  const tileHost = 'https://tile.openstreetmap.org';
+  // Tile yüklemede artık fetch değil <img> kullanıldığı için tile host sadece img-src'de yeterli
+  const csp = `default-src 'none'; img-src ${wv.cspSource} data: blob: ${tileHost}; style-src ${wv.cspSource} 'unsafe-inline'; script-src ${wv.cspSource} 'unsafe-eval'; connect-src ${wv.cspSource} blob:; worker-src blob:;`;
     html = html.replace('<head>', `<head><meta http-equiv="Content-Security-Policy" content="${csp}">`);
     
     const cssUri = mediaUri('css', 'dashboard.css');

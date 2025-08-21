@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "three": "./js/three/vendor/three.module.js"
+  }
+}

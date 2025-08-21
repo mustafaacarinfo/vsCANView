@@ -4,14 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CAN Debugger – Modular</title>
+  <!-- debug.js kaldırıldı (erişim hatası veriyordu) -->
   <link rel="stylesheet" href="__CSS_URI__" />
 </head>
 <body>
   <div class="nav"><div>🏠 Dashboards › <b>j1939-truck</b></div><div style="color:#9fb0c4">CAN Debugger – Modular</div></div>
 
   <div class="tabs">
-    <div class="tab active" data-tab="dash">Dashboard</div>
-    <div class="tab" data-tab="feed">Live CAN Feed</div>
+  <div class="tab active" data-tab="dash">Overview</div>
+  <div class="tab" data-tab="feed">Live Monitor</div>
+  <div class="tab" data-tab="dtc">Diagnostics</div>
+  <div class="tab" data-tab="sim">Simulator</div>
+  <div class="tab" data-tab="log">Log Replay</div>
+  <div class="tab" data-tab="script">Automation</div>
   </div>
 
   <div class="chips">
@@ -59,73 +64,93 @@
 
   <div id="page-dash" class="page active">
     <div class="grid">
-      <div class="panel kpis"><div class="pb kpi-wrap">
-        <div class="kpi"><div class="lbl">Distance</div><div class="val" id="kpiDistance">465 Mm</div></div>
-        <div class="kpi"><div class="lbl">Operation</div><div class="val" id="kpiOperation">51.2 week</div></div>
-        <div class="kpi"><div class="lbl">Speed</div><div class="val" id="kpiSpeed">56 km/h</div></div>
-        <div class="kpi"><div class="lbl">Fuel Rate</div><div class="val" id="kpiFuelRate">30 l/h</div></div>
-        <div class="kpi"><div class="lbl">Fuel Eco…</div><div class="val" id="kpiEco">2.5 km/l</div></div>
+  <div class="panel kpis"><div class="pb kpi-wrap">
+  <div class="kpi kpi-distance" data-kpi="distance"><div class="lbl">Distance</div><div class="val" id="kpiDistance">0 km</div></div>
+  <div class="kpi kpi-operation" data-kpi="operation"><div class="lbl">Engine Hours</div><div class="val" id="kpiOperation">0 h</div></div>
+  <div class="kpi kpi-speed" data-kpi="speed"><div class="lbl">Speed</div><div class="val" id="kpiSpeed">0 km/h</div></div>
+  <div class="kpi kpi-fuelrate" data-kpi="fuelrate"><div class="lbl">Fuel Rate</div><div class="val" id="kpiFuelRate">0 l/h</div></div>
+  <div class="kpi kpi-eco" data-kpi="eco"><div class="lbl">Fuel Eco</div><div class="val" id="kpiEco">0 km/l</div></div>
       </div></div>
 
-      <div class="panel speed"><div class="ph"><div>Speed (km/h)</div></div>
-        <div class="pb"><div class="legend" id="lgSpeed"></div><canvas id="speed"></canvas></div>
-      </div>
-
-      <div class="panel gauge"><div class="ph"><div>Fuel (%)</div></div>
-        <div class="pb"><canvas id="fuel" class="small"></canvas></div>
-      </div>
-
-      <div class="panel rpm"><div class="ph"><div>Engine RPM</div></div>
-        <div class="pb"><canvas id="rpm" class="small"></canvas></div>
-      </div>
-
-      <div class="panel viewer">
-        <div class="ph"><div>Vehicle 3D</div></div>
+      <div class="panel device">
+        <div class="ph"><div>Device</div></div>
         <div class="pb">
-          <div id="vehicleHost" style="height:320px;position:relative">
-            <canvas id="vehicleCanvas" style="width:100%;height:100%;display:block;"></canvas>
+          <div id="vehicleHost" class="device-host">
+            <canvas id="vehicleCanvas" class="device-canvas"></canvas>
             <div class="notice" id="vehicleNotice"></div>
           </div>
         </div>
       </div>
 
-      <div class="panel gps"><div class="ph"><div>GPS Position</div></div>
-        <div class="pb"><canvas id="map"></canvas></div>
+      <div class="panel speed"><div class="ph"><div>Speed (km/h)</div></div>
+        <div class="pb"><div class="legend" id="lgSpeed"></div><canvas id="speed"></canvas></div>
       </div>
 
-      <div class="panel temps"><div class="ph"><div>Temperatures (°C)</div></div>
-        <div class="pb"><div class="legend" id="lgTemps"></div><canvas id="temps" class="small"></canvas></div>
+      <div class="panel gauge"><div class="ph"><div>Fuel / Fuel Rate</div></div>
+        <div class="pb">
+          <div class="fuel-flex">
+            <div class="fuel-gauge"><canvas id="fuel"></canvas></div>
+            <div class="fuel-rate"><canvas id="fuelRate"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel rpm"><div class="ph"><div>Engine RPM</div></div>
+        <div class="pb"><canvas id="rpm"></canvas></div>
+      </div>
+      
+      <div class="panel engine engine-params">
+        <div class="ph"><div>Engine Parameters</div></div>
+        <div class="pb">
+          <div class="eng-grid">
+            <div class="eng-card">
+              <div class="eng-hd">Oil Pressure</div>
+              <canvas id="oilPressure"></canvas>
+              <div class="eng-val" id="oilPressureVal">0 kPa</div>
+            </div>
+            <div class="eng-card">
+              <div class="eng-hd">Battery Voltage</div>
+              <canvas id="batteryVoltage"></canvas>
+              <div class="eng-val" id="batteryVoltageVal">0 V</div>
+            </div>
+            <div class="eng-card">
+              <div class="eng-hd">Manifold Pressure</div>
+              <canvas id="intakeManifold"></canvas>
+              <div class="eng-val" id="intakeManifoldVal">0 kPa</div>
+            </div>
+            <div class="eng-card">
+              <div class="eng-hd">Coolant Temp</div>
+              <canvas id="coolantTemp"></canvas>
+              <div class="eng-val" id="coolantTempVal">0 °C</div>
+            </div>
+            <div class="eng-card">
+              <div class="eng-hd">Oil Temp</div>
+              <canvas id="oilTemp"></canvas>
+              <div class="eng-val" id="oilTempVal">0 °C</div>
+            </div>
+            <div class="eng-card">
+              <div class="eng-hd">Exhaust Temp</div>
+              <canvas id="exhaustTemp"></canvas>
+              <div class="eng-val" id="exhaustTempVal">0 °C</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      
+
+      <div class="panel gps"><div class="ph"><div>GPS Position</div></div>
+        <div class="pb nav-wrapper">
+          <canvas id="navMap"></canvas>
+        </div>
       </div>
 
       <div class="panel pressure"><div class="ph"><div>Aftertreatment Fuel Pressure (kPa)</div></div>
         <div class="pb"><canvas id="pressure" class="small"></canvas></div>
       </div>
 
-      <div class="panel fuelrate"><div class="ph"><div>Fuel Rate (l/h)</div></div>
-        <div class="pb"><canvas id="fuelRate" class="small"></canvas></div>
-      </div>
 
-      <div class="panel tempGauges">
-        <div class="ph"><div>Temperature Gauges (°C)</div></div>
-        <div class="pb">
-          <div class="gauges3">
-            <canvas id="gCoolant" class="small"></canvas>
-            <canvas id="gOil" class="small"></canvas>
-            <canvas id="gExhaust" class="small"></canvas>
-          </div>
-        </div>
-      </div>
       
-      <div class="panel engineGauges">
-        <div class="ph"><div>Engine Parameters</div></div>
-        <div class="pb">
-          <div class="gauges3">
-            <canvas id="oilPressure" class="small"></canvas>
-            <canvas id="batteryVoltage" class="small"></canvas>
-            <canvas id="intakeManifold" class="small"></canvas>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -136,6 +161,121 @@
         <button id="exportFeed" class="btn">Export JSON</button>
       </div>
       <div id="feed"></div>
+    </div>
+  </div>
+
+  <div id="page-sim" class="page">
+    <div style="padding:24px;color:#94a3b8;max-width:760px;line-height:1.5">
+      <h2 style="margin-top:0;color:#e5e7eb;font-size:18px">Simulator</h2>
+      <p>This section will provide a local generator for <b>J1939 / CAN</b> messages to test dashboards without a real vehicle.</p>
+      <ul style="padding-left:18px">
+        <li>Planned: Parametric speed / RPM / temperature / pressure scenarios</li>
+        <li>Random or scripted data flows</li>
+        <li>Custom frame scripting</li>
+      </ul>
+      <div style="margin-top:16px;padding:12px 14px;border:1px solid #1f2430;border-radius:8px;background:#0f1520;color:#b7c0cd">
+        Not implemented yet. Share your priority use‑cases.
+      </div>
+    </div>
+  </div>
+  <div id="page-log" class="page">
+    <div style="padding:24px;color:#94a3b8;max-width:760px;line-height:1.5">
+      <h2 style="margin-top:0;color:#e5e7eb;font-size:18px">Log Replay</h2>
+      <p>Replay recorded CAN logs preserving their original timing for historical analysis.</p>
+      <ul style="padding-left:18px">
+        <li>Planned: .log / .txt / PCAP import</li>
+        <li>Variable playback speed (0.25x .. 20x)</li>
+        <li>Filter by PGN / ID during replay</li>
+      </ul>
+      <div style="margin-top:16px;padding:12px 14px;border:1px solid #1f2430;border-radius:8px;background:#0f1520;color:#b7c0cd">
+        Not implemented yet. Sample logs will be used for validation.
+      </div>
+    </div>
+  </div>
+  <div id="page-script" class="page">
+    <div style="padding:24px;color:#94a3b8;max-width:760px;line-height:1.5">
+      <h2 style="margin-top:0;color:#e5e7eb;font-size:18px">Automation</h2>
+      <p>Scripting area for generating, transforming or reacting to incoming CAN frames.</p>
+      <ul style="padding-left:18px">
+        <li>Planned: Embedded JS/TS editor</li>
+        <li>Sample script library</li>
+        <li>Secure sandbox + MQTT publish API</li>
+      </ul>
+      <div style="margin-top:16px;padding:12px 14px;border:1px solid #1f2430;border-radius:8px;background:#0f1520;color:#b7c0cd">
+        Not implemented yet. Provide desired automation examples.
+      </div>
+    </div>
+  </div>
+  <div id="page-dtc" class="page">
+    <div style="padding:24px;color:#94a3b8;max-width:1100px;line-height:1.5">
+      <h2 style="margin-top:0;color:#e5e7eb;font-size:18px">Diagnostics</h2>
+      <p>Planned live view for J1939 Diagnostic Trouble Codes (DTC), warning lamps & health status.</p>
+
+      <div class="diag-panel" style="margin-top:4px">
+        <h3 style="margin:0 0 8px">DTC Warning Lamps</h3>
+        <div class="lamp-grid" id="warningLamps">
+          <div class="lamp" data-lamp="mil" data-state="off"><div class="icon">⚠</div><div class="label">MIL</div><span class="state">OFF</span></div>
+          <div class="lamp" data-lamp="awl" data-state="off"><div class="icon">🟡</div><div class="label">Amber</div><span class="state">OFF</span></div>
+          <div class="lamp" data-lamp="rsl" data-state="off"><div class="icon">🛑</div><div class="label">Red Stop</div><span class="state">OFF</span></div>
+          <div class="lamp" data-lamp="protect" data-state="off"><div class="icon">🛡</div><div class="label">Protect</div><span class="state">OFF</span></div>
+          <div class="lamp" data-lamp="dpf" data-state="off"><div class="icon">🧪</div><div class="label">DPF</div><span class="state">OFF</span></div>
+          <div class="lamp" data-lamp="abs" data-state="off"><div class="icon">🚗</div><div class="label">ABS</div><span class="state">OFF</span></div>
+        </div>
+        <div style="font-size:11px;color:#6b7280;margin-top:4px">States: OFF / ON / FLASH (from DM1 / DM2 lamp status bits)</div>
+      </div>
+
+      <div class="diag-layout" style="margin-top:16px">
+        <div class="diag-panel">
+          <h3 style="margin:0 0 8px">DTC Monitor</h3>
+          <table class="dtc-table" style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead style="background:#262626">
+              <tr><th>Source</th><th>SPN</th><th>FMI</th><th>Count</th><th>Status</th><th>Last Seen</th></tr>
+            </thead>
+            <tbody id="dtcBody">
+              <tr class="placeholder"><td colspan="6" style="text-align:center;color:#555">No DTCs yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="diag-panel">
+          <h3 style="margin:0 0 8px">Health Summary</h3>
+          <ul id="healthSummary" style="list-style:none;margin:0;padding:0;font-size:13px">
+            <li data-key="coolant" style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #333">Coolant Temp <span class="value">—</span></li>
+            <li data-key="oilPress" style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #333">Oil Pressure <span class="value">—</span></li>
+            <li data-key="battery" style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #333">Battery Voltage <span class="value">—</span></li>
+            <li data-key="map" style="display:flex;justify-content:space-between;padding:4px 0">Intake Manifold <span class="value">—</span></li>
+          </ul>
+        </div>
+        <div class="diag-panel">
+          <h3 style="margin:0 0 8px">Planned</h3>
+          <ul style="padding-left:18px;font-size:13px;margin:0">
+            <li>Active vs previously active DTC segregation</li>
+            <li>DTC snapshot export</li>
+            <li>SPN metadata lookup & descriptions</li>
+            <li>Freeze frame capture</li>
+          </ul>
+        </div>
+        <div class="diag-panel">
+          <h3 style="margin:0 0 8px">Future Sections Template</h3>
+          <ul style="padding-left:18px;font-size:13px;margin:0">
+            <li>Aftertreatment / Emissions status</li>
+            <li>Battery / Electrical health (voltage min/max, ripple)</li>
+            <li>Network health (bus load %, error frames)</li>
+            <li>Environmental sensors (ambient temp, baro)</li>
+          </ul>
+        </div>
+      </div>
+      <div style="margin-top:16px;padding:12px 14px;border:1px solid #1f2430;border-radius:8px;background:#0f1520;color:#b7c0cd">
+        Not implemented yet. (Future) DM1 parser will toggle lamps by setting data-state="on|flash|off".
+      </div>
+      <div style="margin-top:12px;padding:12px 14px;border:1px dashed #223146;border-radius:8px;background:#0c141d;color:#7d8b99;font-size:12px">
+        Template placeholders added for upcoming diagnostic subsystems. Implementation will populate:
+        <ul style="margin:6px 0 0 18px;padding:0">
+          <li>DM1 stream: real-time active DTCs + lamp bit decoding</li>
+          <li>DM2 snapshot: previously active DTC list</li>
+          <li>Aggregation: per-source address fault counts & last seen time</li>
+          <li>Health KPIs: derived green/amber/red status badges</li>
+        </ul>
+      </div>
     </div>
   </div>
 

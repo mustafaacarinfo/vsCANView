@@ -44,12 +44,32 @@ export class MultiSignalChart {
     this._visible = false;
     this._allAvailableSignals = new Map(); // Kullanılabilir tüm sinyalleri sakla
     this._searchInitialized = false;
+    this.autoScrollEnabled = true; // Otomatik kaydırma varsayılan olarak açık
     
     // Grafik oluşturma
     this.initChart();
     
     // Temizleme butonunu dinle (artık ana clearCharts düğmesini kullanacağız)
     document.getElementById('clearCharts')?.addEventListener('click', () => this.clearData());
+    
+    // Otomatik kaydırma düğmesini dinle
+    const autoScrollBtn = document.getElementById('toggleAutoScroll');
+    if (autoScrollBtn) {
+      autoScrollBtn.classList.add('active'); // Başlangıçta aktif
+      autoScrollBtn.addEventListener('click', () => {
+        this.autoScrollEnabled = !this.autoScrollEnabled;
+        if (this.autoScrollEnabled) {
+          autoScrollBtn.classList.add('active');
+          // Otomatik kaydırma etkinleştirildiğinde hemen en alta kaydır
+          const wrapper = document.querySelector('.signal-list-wrapper');
+          if (wrapper) {
+            wrapper.scrollTop = wrapper.scrollHeight;
+          }
+        } else {
+          autoScrollBtn.classList.remove('active');
+        }
+      });
+    }
   }
 
   // Chart.js grafiğini başlat
@@ -316,6 +336,17 @@ export class MultiSignalChart {
     
     if (!inserted) {
       container.appendChild(checkboxDiv);
+      
+      // Sinyal eklendiğinde otomatik kaydırma (sadece özellik açıksa)
+      if (this.autoScrollEnabled) {
+        const wrapper = container.parentElement;
+        if (wrapper) {
+          // Kaydırma animasyonu ile yeni eklenen öğeyi görünür kıl
+          setTimeout(() => {
+            wrapper.scrollTop = wrapper.scrollHeight;
+          }, 50);
+        }
+      }
     }
   }
   

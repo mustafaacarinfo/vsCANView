@@ -198,7 +198,12 @@
         
         <div class="signal-selection-layout">
           <div class="signal-list-container">
-            <h4>Kullanılabilir Sinyaller <span id="signalCount" class="signal-count">(0)</span></h4>
+            <h4>
+              Kullanılabilir Sinyaller <span id="signalCount" class="signal-count">(0)</span>
+              <button id="toggleAutoScroll" class="auto-scroll-btn" title="Otomatik kaydırmayı aç/kapa">
+                <span class="auto-scroll-icon">🔄</span>
+              </button>
+            </h4>
             <div class="signal-list-wrapper">
               <div id="multiSignalCheckboxes" class="signal-list">
                 <!-- Sinyal seçim kutuları buraya dinamik olarak eklenecek -->
@@ -208,6 +213,9 @@
           
           <div class="signal-chart-container">
             <canvas id="multiSignalAreaChart" height="350"></canvas>
+            <div class="signals-legend" id="signalLegend">
+              <!-- Sinyal renk lejantı buraya taşındı -->
+            </div>
           </div>
         </div>
       </div>
@@ -221,9 +229,6 @@
           <li>Automatic scaling</li>
           <li>Shows last 60 seconds</li>
         </ul>
-        <div class="signals-legend" id="signalLegend">
-          <!-- Sinyal renk lejantı buraya eklenecek -->
-        </div>
       </div>
     </div>
   </div>

@@ -172,7 +172,7 @@ function clearAllCharts() {
 }
 
 // Temizleme butonuna tıklama işlevi ekle
-document.getElementById('clearCharts').addEventListener('click', clearAllCharts);
+document.getElementById('clearCharts')?.addEventListener('click', clearAllCharts);
 
 // Grafiklerin ilk çizimini planla
 requestAnimationFrame(() => {

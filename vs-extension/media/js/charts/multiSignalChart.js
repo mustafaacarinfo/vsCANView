@@ -1,4 +1,4 @@
-// multiSignalChart.js - Çoklu sinyal izleme grafiği için kod
+// multiSignalChart.js - Code for multi-signal monitoring chart
 // Chart.js import (date adapter kaldırıldı - linear zaman ekseni kullanılacak)
 import { Chart, registerables } from 'chart.js';
 // Chart.js tree-shaking nedeniyle gerekli bileşenleri kaydet
@@ -42,7 +42,7 @@ export class MultiSignalChart {
     this._lastUpdateTime = null;
     this._updateScheduled = false;
     this._visible = false;
-    this._allAvailableSignals = new Map(); // Kullanılabilir tüm sinyalleri sakla
+  this._allAvailableSignals = new Map(); // Store all available signals
     this._searchInitialized = false;
     this.autoScrollEnabled = true; // Otomatik kaydırma varsayılan olarak açık
     
@@ -217,17 +217,17 @@ export class MultiSignalChart {
     }
   }
   
-  // Kullanılabilir sinyallerin listesini güncelleme
+  // Update list of available signals
   updateAvailableSignals(signals) {
     const checkboxesContainer = document.getElementById('multiSignalCheckboxes');
     if (!checkboxesContainer) return;
     
-    // Yeni gelen sinyalleri takip et
+  // Track newly received signals
     if (!this._allAvailableSignals) {
       this._allAvailableSignals = new Map();
     }
     
-    // Yeni gelen sinyalleri listeye ekle
+  // Add newly received signals to the list
     signals.forEach(signal => {
       if (!this._allAvailableSignals.has(signal.id)) {
         this._allAvailableSignals.set(signal.id, {
@@ -237,26 +237,26 @@ export class MultiSignalChart {
           lastUpdated: Date.now()
         });
         
-        // Yeni sinyal için kontrol kutusu oluştur
+  // Create a checkbox for the new signal
         this._createSignalCheckbox(signal.id, signal.name || signal.id, checkboxesContainer);
       } else {
-        // Varolan sinyali güncelle
+  // Update existing signal
         const existingSignal = this._allAvailableSignals.get(signal.id);
         existingSignal.lastUpdated = Date.now();
       }
     });
     
-    // Sinyal sayısı güncellemesini göster
+  // Show signal count update
     this._updateSignalCounter();
     
-    // Sinyal arama etkinleştir
+  // Enable signal search
     this._setupSignalSearch();
     
-    // Sinyaller değiştiyse lejantı güncelle
+  // Update legend if signals changed
     this.updateLegend();
   }
   
-  // Sinyal checkbox'ı oluştur
+  // Create signal checkbox
   _createSignalCheckbox(signalId, signalName, container) {
     // Kontrol et, varsa oluşturma
     if (document.getElementById(`signal-${signalId.replace(/\s+/g, '-')}`)) {
@@ -298,21 +298,21 @@ export class MultiSignalChart {
       
       setTimeout(() => {
         if (this.selectedSignals.has(signalId)) {
-          // Sinyali kaldır
+          // Remove signal
           this.selectedSignals.delete(signalId);
           checkboxDiv.classList.remove('checked');
           checkbox.checked = false;
           this.removeSignalFromChart(signalId);
         } else {
-          // Maksimum sinyal sayısı kontrolü
+          // Max signal count check
           if (this.selectedSignals.size >= this.maxSignals) {
-            alert(`En fazla ${this.maxSignals} sinyal seçebilirsiniz.`);
+            alert(`You can select up to ${this.maxSignals} signals.`);
             checkbox.checked = false;
             checkboxDiv.classList.remove('processing');
             return;
           }
           
-          // Sinyali ekle
+          // Add signal
           this.selectedSignals.add(signalId);
           checkboxDiv.classList.add('checked');
           checkbox.checked = true;
@@ -337,7 +337,7 @@ export class MultiSignalChart {
     if (!inserted) {
       container.appendChild(checkboxDiv);
       
-      // Sinyal eklendiğinde otomatik kaydırma (sadece özellik açıksa)
+  // Auto-scroll when a signal is added (only if feature enabled)
       if (this.autoScrollEnabled) {
         const wrapper = container.parentElement;
         if (wrapper) {
@@ -350,7 +350,7 @@ export class MultiSignalChart {
     }
   }
   
-  // Sinyal sayaç etiketini güncelle
+  // Update signal counter label
   _updateSignalCounter() {
     const countElement = document.getElementById('signalCount');
     if (countElement && this._allAvailableSignals) {
@@ -358,7 +358,7 @@ export class MultiSignalChart {
     }
   }
   
-  // Sinyal arama fonksiyonu
+  // Signal search function
   _setupSignalSearch() {
     const searchInput = document.getElementById('signalSearchInput');
     if (!searchInput || this._searchInitialized) return;
@@ -380,12 +380,12 @@ export class MultiSignalChart {
     });
   }
   
-  // Grafiğe yeni sinyal ekleme
+  // Add new signal to chart
   addSignalToChart(signalId, signalName) {
-    // Bu sinyal için veriler oluştur
+  // Create data for this signal
     this.signalData[signalId] = [];
     
-    // Bu sinyal için renk seçimi yap
+  // Choose color for this signal
     const colorName = this.colorNames[this.colorIndex % this.colorNames.length];
     this.colorIndex++;
     
@@ -430,7 +430,7 @@ export class MultiSignalChart {
     }
   }
   
-  // Grafikten sinyal kaldırma
+  // Remove signal from chart
   removeSignalFromChart(signalId) {
   if(!this.chart) return;
   const datasetIndex = this.chart.data.datasets.findIndex(dataset => dataset.label === signalId || dataset.signalId === signalId);
@@ -444,29 +444,29 @@ export class MultiSignalChart {
     delete this.signalData[signalId];
   }
   
-  // Sinyal verisini güncelleme
+  // Update signal data
   updateSignalData(signalId, value) {
-    // Sinyal listesinde varsa güncelle
+  // Update if present in signal list
     if (this._allAvailableSignals && this._allAvailableSignals.has(signalId)) {
       const signalInfo = this._allAvailableSignals.get(signalId);
       signalInfo.lastValue = value;
       signalInfo.lastUpdated = Date.now();
     }
     
-    // Bu sinyal seçili değilse grafik için güncelleme yapma
+  // If this signal isn't selected, skip chart update
     if (!this.selectedSignals.has(signalId) || !this.chart) return;
     
     // Zaman damgası oluştur (milisaniye cinsinden)
     const timestamp = Date.now();
     
-    // Bu sinyal için veri dizisini al veya oluştur
+  // Get or create data array for this signal
     if (!this.signalData[signalId]) {
       this.signalData[signalId] = [];
     }
     
     // Sayısal değer kontrolü
     if (typeof value !== 'number' || isNaN(value)) {
-      console.warn(`Geçersiz sinyal değeri: ${signalId} = ${value}`);
+  console.warn(`Invalid signal value: ${signalId} = ${value}`);
       return;
     }
     
@@ -504,7 +504,7 @@ export class MultiSignalChart {
   
   // Tüm veriyi temizleme
   clearData() {
-    // Tüm sinyal verilerini temizle
+  // Clear all signal data
     Object.keys(this.signalData).forEach(signalId => {
       this.signalData[signalId] = [];
     });

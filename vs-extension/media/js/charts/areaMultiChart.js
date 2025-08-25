@@ -34,7 +34,7 @@ export class AreaMultiChart {
     this.unitLabel = '';
     
     // Grafik başlığı
-    this.title = 'Sinyal İzleme';
+  this.title = 'Signal Tracking';
     
     // Animasyon durumu
     this.animationFrame = null;
@@ -284,7 +284,7 @@ export class AreaMultiChart {
       ctx.fillStyle = '#94a3b8';
       ctx.font = '13px Inter, system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Veri yok veya sinyal seçilmedi', width / 2, height / 2);
+  ctx.fillText('No data or no signal selected', width / 2, height / 2);
       return;
     }
     

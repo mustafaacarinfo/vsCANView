@@ -888,7 +888,7 @@ function initializeSignalMonitor() {
   if (!signalChartCanvas) return;
   
   areaChart = new AreaMultiChart(signalChartCanvas);
-  areaChart.setTitle('Sinyal Monitörü');
+  areaChart.setTitle('Signal Monitor');
   areaChart.startLiveUpdate();
   
   // Sinyal seçim konteynerini al

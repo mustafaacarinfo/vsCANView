@@ -179,31 +179,30 @@
   <div id="page-signals" class="page">
     <div class="signals-container">
       <div class="signals-header">
-        <h2>Sinyal Analizi</h2>
         <div class="signals-controls">
-          <!-- Grafikleri Temizle butonu kaldırıldı; event handler'lar güvenli şekilde optional chaining ile kullanılıyor -->
+          <!-- Signal clear button removed; event handlers use optional chaining to avoid errors -->
         </div>
       </div>
       
       <div class="signal-panel">
         <div class="signal-panel-header">
-          <h3>Sinyal Monitörü</h3>
+          <h3>Signal Monitor</h3>
           <div class="signal-search">
-            <input type="text" id="signalSearchInput" placeholder="Sinyal ara..." class="signal-search-input">
+            <input type="text" id="signalSearchInput" placeholder="Search signals..." class="signal-search-input">
           </div>
         </div>
         
         <div class="signal-selection-layout">
           <div class="signal-list-container">
             <h4>
-              Kullanılabilir Sinyaller <span id="signalCount" class="signal-count">(0)</span>
-              <button id="toggleAutoScroll" class="auto-scroll-btn" title="Otomatik kaydırmayı aç/kapa">
+              Available Signals <span id="signalCount" class="signal-count">(0)</span>
+              <button id="toggleAutoScroll" class="auto-scroll-btn" title="Toggle auto-scroll">
                 <span class="auto-scroll-icon">🔄</span>
               </button>
             </h4>
             <div class="signal-list-wrapper">
               <div id="multiSignalCheckboxes" class="signal-list">
-                <!-- Sinyal seçim kutuları buraya dinamik olarak eklenecek -->
+                <!-- Signal checkboxes will be added here dynamically -->
               </div>
             </div>
           </div>
@@ -211,7 +210,7 @@
           <div class="signal-chart-container">
             <canvas id="multiSignalAreaChart" height="350"></canvas>
             <div class="signals-legend" id="signalLegend">
-              <!-- Sinyal renk lejantı buraya taşındı -->
+              <!-- Signal color legend moved here -->
             </div>
           </div>
         </div>

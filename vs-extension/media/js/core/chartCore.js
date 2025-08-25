@@ -935,7 +935,7 @@ export class MultiAreaChart extends MultiLineChart {
       ctx.strokeStyle='#1f2430'; ctx.beginPath(); ctx.moveTo(this.pad.l,this.pad.t); ctx.lineTo(this.pad.l,H-this.pad.b); ctx.lineTo(W-this.pad.r,H-this.pad.b); ctx.stroke();
       ctx.fillStyle='#475569'; ctx.font='12px "Inter",system-ui,sans-serif';
       ctx.textAlign='center'; ctx.fillText('No signals selected', W/2, H/2 - 6);
-      ctx.fillText('Sinyal çiplerine tıklayın veya DBC decode etkin olsun', W/2, H/2 + 10);
+  ctx.fillText('Click signal chips or enable DBC decode', W/2, H/2 + 10);
       return;
     }
     for(const idx of activeIdxs){ const s=this.series[idx]; for(const p of s.data){ if(p.t>=this.xmin && p.t<=this.xmax){ if(p.v<y0)y0=p.v; if(p.v>y1)y1=p.v; } } }

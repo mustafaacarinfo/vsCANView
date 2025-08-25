@@ -359,18 +359,21 @@ function clearAllCharts() {
   if (multiSignalChart) multiSignalChart.draw();
 }
 
-  // Temizleme butonuna tıklama işlevi ekle
-  document.getElementById('clearSignalChartData')?.addEventListener('click', () => {
-    if (areaChart) {
-      areaChart.clearData();
-    }
-  });
-
-// Sinyal grafiğinin verilerini temizle
-document.getElementById('clearSignalChartData')?.addEventListener('click', () => {
+// Ana temizleme butonu ile tüm grafikleri temizle, bu butonu Signal Analysis sekmesi için de kullanacağız
+document.getElementById('clearCharts')?.addEventListener('click', () => {
+  // Tüm dashboard grafikleri
+  speed?.clearData();
+  rpm?.clearData();
+  pressure?.clearData(); 
+  fuelRate?.clearData();
+  fuelGauge?.setValue(0);
+  
+  // Signal Analysis grafikleri
   if (multiSignalChart) {
     multiSignalChart.clearData();
   }
+  
+  console.log('Tüm grafikler temizlendi');
 });
 
 // Grafiklerin ilk çizimini planla
@@ -468,37 +471,36 @@ function pushFeed(topic, payload){
   feedArr.push(entry);
   while(feedArr.length > 1200) feedArr.shift();
 
-  // Sinyalleri sinyal monitörü için işle
-  if (payload.signals) {
-    const availableSignals = [];
-    
-    Object.entries(payload.signals).forEach(([signalName, value]) => {
-      // Sadece sayısal değerler için ekle
-      if (typeof value === 'number' && !isNaN(value)) {
-        availableSignals.push({
-          id: signalName,
-          name: signalName
-        });
-        
-        // Eğer multiSignalChart mevcutsa sinyali güncelle
-        if (multiSignalChart) {
-          multiSignalChart.updateSignalData(signalName, value);
+    // Sinyalleri sinyal monitörü için işle
+    if (payload.signals) {
+      const availableSignals = [];
+      
+      // Her gelen sinyal grubunda, yeni gelen sinyalleri topla
+      Object.entries(payload.signals).forEach(([signalName, value]) => {
+        // Sadece sayısal değerler için ekle
+        if (typeof value === 'number' && !isNaN(value)) {
+          availableSignals.push({
+            id: signalName,
+            name: signalName
+          });
+          
+          // Eğer multiSignalChart mevcutsa sinyali güncelle
+          if (multiSignalChart) {
+            multiSignalChart.updateSignalData(signalName, value);
+          }
         }
-        
-        // Eski arayüz için
-        if (typeof updateSignalList === 'function') {
-          updateSignalList(signalName, value);
+      });
+      
+      // Her veri paketinden sonra multiSignalChart'ı güncellemek yerine,
+      // belli aralıklarla liste güncellemesini yap
+      if (multiSignalChart && availableSignals.length > 0) {
+        // Son güncelleme zamanından bu yana en az 1 saniye geçtiyse güncelle
+        if (!window._lastSignalListUpdateTime || (Date.now() - window._lastSignalListUpdateTime) > 1000) {
+          multiSignalChart.updateAvailableSignals(availableSignals);
+          window._lastSignalListUpdateTime = Date.now();
         }
       }
-    });
-    
-    // Mevcut sinyalleri multiSignalChart'a ekle
-    if (multiSignalChart && availableSignals.length > 0) {
-      multiSignalChart.updateAvailableSignals(availableSignals);
-    }
-  }
-
-  // Filtreyi geçmiş kayıtlara uygulamak için sadece ekranda göstereceğimiz öğeleri buffer'a koy
+    }  // Filtreyi geçmiş kayıtlara uygulamak için sadece ekranda göstereceğimiz öğeleri buffer'a koy
   if(!passesIdFilter(entry)) return; // filtre dışı ise ekrana ekleme
   feedBuffer.push(entry);
 

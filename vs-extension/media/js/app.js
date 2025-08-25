@@ -394,7 +394,7 @@ let viewer = null;
 console.log('Vehicle URI kontrol ediliyor:', vehicleUri);
 
 // URI placeholder değiştirilmişse direkt başlat
-if (vehicleUri && vehicleUri !== '__VEHICLE_URI__') {
+if (vehicleUri && vehicleUri !== 'https://vscode-remote%2Bcodespaces-002bredesigned-002dpotato-002d95vggq9656427xvg.vscode-resource.vscode-cdn.net/workspaces/vsCANView/vs-extension/media/vehicle.glb') {
   console.log('Vehicle URI bulundu, VehicleViewer başlatılıyor:', vehicleUri);
   startVehicleViewer(vehicleUri);
 } else {

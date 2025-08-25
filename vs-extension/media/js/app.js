@@ -8,6 +8,8 @@ import { renderJSONTree } from './core/jsonTree.js';
 import { VehicleViewer } from './three/vehicleViewer_new.js';
 import { FuelGauge } from './charts/arcGauge.js';
 import { EngineGauges } from './charts/engineGauges.js';
+import { AreaMultiChart } from './charts/areaMultiChart.js';
+import { MultiSignalChart } from './charts/multiSignalChart.js';
 
 // =================== FILTRE YARDIMCI FONKSIYONLARI ===================
 function getIdFilter(){
@@ -66,6 +68,7 @@ const tabs = document.querySelectorAll('.tab');
 const pages = { 
   dash: document.getElementById('page-dash'), 
   feed: document.getElementById('page-feed'),
+  signals: document.getElementById('page-signals'), // Signals sayfasını ekledik
   dtc: document.getElementById('page-dtc'),
   sim: document.getElementById('page-sim'),
   log: document.getElementById('page-log'),
@@ -112,6 +115,19 @@ tabs.forEach(t => t.addEventListener('click', () => {
         fuelGauge.draw();
         engineGauges.draw();
       },120);
+    } 
+    // Signals sekmesine geçildiğinde multiSignalChart'ı aktifleştir
+    else if (t.dataset.tab === 'signals' && multiSignalChart) {
+      console.log('Signal Analysis sekmesine geçildi, grafiği etkinleştiriliyor');
+      multiSignalChart.setVisible(true);
+      setTimeout(() => {
+        // Canvas'ı yeniden boyutlandır ve çiz
+        multiSignalChart.draw();
+      }, 100);
+    } 
+    // Sinyal sekmesinden çıkıldığında grafiği pasifleştir (performans için)
+    else if (multiSignalChart) {
+      multiSignalChart.setVisible(false);
     }
 
     // İşlem tamamlandıktan sonra kilit kaldır
@@ -256,6 +272,18 @@ const engineGauges = new EngineGauges(
   }
 );
 if(navMap) navMap.draw();
+
+// Çoklu Sinyal İzleme grafiği
+let multiSignalChart = null;
+if (document.getElementById('multiSignalAreaChart')) {
+  multiSignalChart = new MultiSignalChart('multiSignalAreaChart', 'signalLegend');
+  // Grafik başlatıldıktan sonra çiz ve görünürlüğünü sayfa durumuna göre ayarla
+  const isSignalsTabActive = document.querySelector('.tab[data-tab="signals"]')?.classList.contains('active');
+  multiSignalChart.draw();
+  multiSignalChart.setVisible(isSignalsTabActive);
+  console.log('MultiSignalChart başlatıldı ve çizildi:', isSignalsTabActive ? 'görünür' : 'gizli');
+}
+
 // Engine parametre value elementleri
 const oilPressureValEl = document.getElementById('oilPressureVal');
 const batteryVoltageValEl = document.getElementById('batteryVoltageVal');
@@ -315,6 +343,11 @@ function clearAllCharts() {
   if(oilTempValEl) oilTempValEl.textContent = '0 °C';
   if(exhaustTempValEl) exhaustTempValEl.textContent = '0 °C';
   
+  // Sinyal grafiklerini temizle
+  if (multiSignalChart) {
+    multiSignalChart.clearData();
+  }
+  
   // Grafikleri yeniden çiz
   speed.draw();
   rpm.draw();
@@ -323,10 +356,22 @@ function clearAllCharts() {
   fuelRate.draw();
   fuelGauge.draw();
   engineGauges.draw();
+  if (multiSignalChart) multiSignalChart.draw();
 }
 
-// Temizleme butonuna tıklama işlevi ekle
-document.getElementById('clearCharts').addEventListener('click', clearAllCharts);
+  // Temizleme butonuna tıklama işlevi ekle
+  document.getElementById('clearSignalChartData')?.addEventListener('click', () => {
+    if (areaChart) {
+      areaChart.clearData();
+    }
+  });
+
+// Sinyal grafiğinin verilerini temizle
+document.getElementById('clearSignalChartData')?.addEventListener('click', () => {
+  if (multiSignalChart) {
+    multiSignalChart.clearData();
+  }
+});
 
 // Grafiklerin ilk çizimini planla
 requestAnimationFrame(() => {
@@ -343,7 +388,7 @@ requestAnimationFrame(() => {
 import('./seed.mjs').then(m=>m.seedAll({speed,rpm,pressure,fuelRate,fuelGauge,navMap}));
 
 // 3D viewer - URI kontrolü ve başlatma
-let vehicleUri = '__VEHICLE_URI__';
+let vehicleUri = 'https://vscode-remote%2Bcodespaces-002bredesigned-002dpotato-002d95vggq9656427xvg.vscode-resource.vscode-cdn.net/workspaces/vsCANView/vs-extension/media/vehicle.glb';
 let viewer = null;
 
 console.log('Vehicle URI kontrol ediliyor:', vehicleUri);
@@ -422,6 +467,36 @@ function pushFeed(topic, payload){
   const entry = {ts, topic, payload};
   feedArr.push(entry);
   while(feedArr.length > 1200) feedArr.shift();
+
+  // Sinyalleri sinyal monitörü için işle
+  if (payload.signals) {
+    const availableSignals = [];
+    
+    Object.entries(payload.signals).forEach(([signalName, value]) => {
+      // Sadece sayısal değerler için ekle
+      if (typeof value === 'number' && !isNaN(value)) {
+        availableSignals.push({
+          id: signalName,
+          name: signalName
+        });
+        
+        // Eğer multiSignalChart mevcutsa sinyali güncelle
+        if (multiSignalChart) {
+          multiSignalChart.updateSignalData(signalName, value);
+        }
+        
+        // Eski arayüz için
+        if (typeof updateSignalList === 'function') {
+          updateSignalList(signalName, value);
+        }
+      }
+    });
+    
+    // Mevcut sinyalleri multiSignalChart'a ekle
+    if (multiSignalChart && availableSignals.length > 0) {
+      multiSignalChart.updateAvailableSignals(availableSignals);
+    }
+  }
 
   // Filtreyi geçmiş kayıtlara uygulamak için sadece ekranda göstereceğimiz öğeleri buffer'a koy
   if(!passesIdFilter(entry)) return; // filtre dışı ise ekrana ekleme
@@ -509,21 +584,27 @@ window.addEventListener('message', (ev) => {
 
     // Aktif sekmeyi ve sayfa durumunu kontrol et
     const isActiveDashboard = document.getElementById('page-dash').classList.contains('active');
+    const isActiveSignals = document.getElementById('page-signals').classList.contains('active');
     const isPageVisible = !window.canAppHidden;
 
     // Çizim optimizasyonu
-    let shouldDraw = isActiveDashboard && isPageVisible;
+    let shouldDrawDashboard = isActiveDashboard && isPageVisible;
+    let shouldDrawSignals = isActiveSignals && isPageVisible;
     const messageRate = tickCount; // Saniyedeki mesaj sayısı
     
     // Mesaj hızına göre adaptif çizim stratejisi
     if (messageRate < 10) {
-      shouldDraw = shouldDraw && true; // Her mesajı çiz
+      shouldDrawDashboard = shouldDrawDashboard && true; // Her mesajı çiz
+      shouldDrawSignals = shouldDrawSignals && true;
     } else if (messageRate < 30) {
-      shouldDraw = shouldDraw && (tickCount % 3 === 0); // Her 3 mesajda bir
+      shouldDrawDashboard = shouldDrawDashboard && (tickCount % 3 === 0); // Her 3 mesajda bir
+      shouldDrawSignals = shouldDrawSignals && (tickCount % 2 === 0);
     } else if (messageRate < 60) {
-      shouldDraw = shouldDraw && (tickCount % 5 === 0); // Her 5 mesajda bir
+      shouldDrawDashboard = shouldDrawDashboard && (tickCount % 5 === 0); // Her 5 mesajda bir
+      shouldDrawSignals = shouldDrawSignals && (tickCount % 3 === 0);
     } else {
-      shouldDraw = shouldDraw && (tickCount % 10 === 0); // Her 10 mesajda bir
+      shouldDrawDashboard = shouldDrawDashboard && (tickCount % 10 === 0); // Her 10 mesajda bir
+      shouldDrawSignals = shouldDrawSignals && (tickCount % 5 === 0);
     }
     
     // Veri ekle ve gerektiğinde çiz
@@ -720,10 +801,17 @@ window.addEventListener('message', (ev) => {
       updatedCharts.add(navMap);
     }
     
-    // Toplu çizim güncelleme
-    if(shouldDraw && updatedCharts.size > 0) {
+    // Toplu çizim güncelleme - dashboard
+    if(shouldDrawDashboard && updatedCharts.size > 0) {
       requestAnimationFrame(() => {
         updatedCharts.forEach(chart => chart.draw());
+      });
+    }
+    
+    // Sinyal izleme grafiğini güncelleme - ayrı koşul
+    if(shouldDrawSignals && multiSignalChart) {
+      requestAnimationFrame(() => {
+        multiSignalChart.draw();
       });
     }
     
@@ -782,6 +870,138 @@ window.addEventListener('message', (ev) => {
   }
 });
 
+// Çoklu sinyal grafiği için değişkenler
+let areaChart = null;
+let selectedSignals = new Set(); // Seçili sinyalleri izlemek için
+const maxSelectedSignals = 5; // Maksimum seçilebilecek sinyal sayısı
+let signalData = {}; // Son gelen sinyal değerlerini saklamak için
+let signalDataHistory = {}; // Sinyal geçmişi için
+let signalCheckboxes = null;
+let monitoredSignals = []; // İzlenen sinyal listesi
+
+// Sinyal seçim arayüzünü oluştur
+function initializeSignalMonitor() {
+  // Sinyal grafiğini oluştur
+  const signalChartCanvas = document.getElementById('signalAreaChart');
+  if (!signalChartCanvas) return;
+  
+  areaChart = new AreaMultiChart(signalChartCanvas);
+  areaChart.setTitle('Sinyal Monitörü');
+  areaChart.startLiveUpdate();
+  
+  // Sinyal seçim konteynerini al
+  signalCheckboxes = document.getElementById('signalCheckboxes');
+  
+  // Temizleme düğmesi olayını dinle
+  document.getElementById('clearChartData')?.addEventListener('click', () => {
+    if (areaChart) {
+      areaChart.clearData();
+    }
+  });
+}
+
+// Bir sinyali ekle veya güncelle
+function updateSignalList(signalName, value) {
+  if (!signalData) signalData = {};
+  
+  // Sinyal değerini kaydet
+  signalData[signalName] = value;
+  
+  // Sinyalin geçmiş verisini sakla
+  if (!signalDataHistory[signalName]) {
+    signalDataHistory[signalName] = [];
+  }
+  
+  // Sinyal seçim UI'da yoksa ekle
+  if (signalCheckboxes && !document.getElementById(`signal-${signalName}`)) {
+    const signalId = `signal-${signalName}`;
+    const colorIndex = monitoredSignals.length % 5;
+    
+    const checkboxContainer = document.createElement('div');
+    checkboxContainer.className = 'signal-checkbox';
+    
+    const colorIndicator = document.createElement('span');
+    colorIndicator.className = 'color-indicator';
+    colorIndicator.style.backgroundColor = getColorForIndex(colorIndex).line;
+    checkboxContainer.appendChild(colorIndicator);
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = signalId;
+    checkbox.dataset.signal = signalName;
+    
+    // Seçim değişikliğini izle
+    checkbox.addEventListener('change', (e) => {
+      const signalName = e.target.dataset.signal;
+      if (e.target.checked) {
+        if (selectedSignals.size >= maxSelectedSignals) {
+          alert(`En fazla ${maxSelectedSignals} sinyal seçilebilir.`);
+          e.target.checked = false;
+          return;
+        }
+        selectedSignals.add(signalName);
+        areaChart.addSeries(signalName, signalName, getColorForIndex(selectedSignals.size - 1));
+      } else {
+        selectedSignals.delete(signalName);
+        areaChart.removeSeries(signalName);
+      }
+    });
+    
+    const label = document.createElement('label');
+    label.htmlFor = signalId;
+    label.textContent = signalName;
+    
+    checkboxContainer.appendChild(checkbox);
+    checkboxContainer.appendChild(label);
+    signalCheckboxes.appendChild(checkboxContainer);
+    
+    // İzlenen sinyaller listesine ekle
+    if (!monitoredSignals.includes(signalName)) {
+      monitoredSignals.push(signalName);
+    }
+  }
+  
+  // Seçili ise grafikteki seriyi güncelle
+  if (selectedSignals.has(signalName) && typeof value === 'number' && !isNaN(value)) {
+    areaChart.pushSample(signalName, Date.now(), value);
+  }
+}
+
+// Renk indeksine göre renk döndür
+function getColorForIndex(index) {
+  const colors = [
+    {fill: 'rgba(66, 133, 244, 0.2)', line: 'rgb(66, 133, 244)'}, // Mavi
+    {fill: 'rgba(219, 68, 55, 0.2)', line: 'rgb(219, 68, 55)'}, // Kırmızı
+    {fill: 'rgba(244, 180, 0, 0.2)', line: 'rgb(244, 180, 0)'}, // Sarı
+    {fill: 'rgba(15, 157, 88, 0.2)', line: 'rgb(15, 157, 88)'}, // Yeşil
+    {fill: 'rgba(171, 71, 188, 0.2)', line: 'rgb(171, 71, 188)'} // Mor
+  ];
+  return colors[index % colors.length];
+}
+
+// Sayfa yüklendiğinde sinyal monitörünü başlat
+document.addEventListener('DOMContentLoaded', () => {
+  initializeSignalMonitor();
+  
+  // Sekmeler arasında geçiş yaparken grafiğin görünürlüğünü güncelle
+  const tabs = document.querySelectorAll('.tab');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      if (tab.dataset.tab === 'feed' && areaChart) {
+        areaChart.setVisible(true);
+      } else if (areaChart) {
+        areaChart.setVisible(false);
+      }
+    });
+  });
+  
+  // Başlangıçta aktif sekmeyi kontrol et
+  const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
+  if (activeTab === 'feed' && areaChart) {
+    areaChart.setVisible(true);
+  }
+});
+
 // Resize - performans optimizasyonlu
 let resizeTimeout = null;
 window.addEventListener('resize', () => { 
@@ -791,12 +1011,15 @@ window.addEventListener('resize', () => {
     const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
     if (activeTab === 'dash' || !activeTab) {
       // Görünür sayfadaki canvas elementleri için yeniden boyutlandırma tetikle
-  speed.draw(); 
-  rpm.draw(); 
-  navMap.draw(); 
+      speed.draw(); 
+      rpm.draw(); 
+      navMap.draw(); 
       pressure.draw(); 
       fuelRate.draw(); 
-  fuelGauge.draw(); 
+      fuelGauge.draw(); 
+      engineGauges.draw();
+    } else if (activeTab === 'signals' && multiSignalChart) {
+      multiSignalChart.draw();
     }
     resizeTimeout = null;
   }, 250); // 250ms gecikme ile yeniden boyutlandırma olaylarını birleştir

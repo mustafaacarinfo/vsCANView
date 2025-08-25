@@ -864,3 +864,114 @@ export class MultiLineChart {
   _x(t){ const w=this.c.getBoundingClientRect().width - this.pad.l - this.pad.r; return this.pad.l + (t-this.xmin)*w/(this.xmax-this.xmin || 1); }
   _y(v,y0,y1){ const h=this.c.getBoundingClientRect().height - this.pad.t - this.pad.b; return this.pad.t + (y1-v)*h/(y1-y0 || 1); }
 }
+
+// Çoklu alan grafiği (şeffaf üst üste binen alanlar)
+export class MultiAreaChart extends MultiLineChart {
+  constructor(canvas, options={}){
+    super(canvas, options.colors || ['#60a5fa','#a78bfa','#34d399','#f59e0b','#ef4444','#10b981']);
+    this.maxSeries = options.maxSeries || 8;
+    this.seriesMap = new Map(); // signalName -> index
+    this.alpha = options.alpha || 0.22;
+    this.lineWidth = options.lineWidth || 1.4;
+    this.windowSec = options.windowSec || 120;
+  }
+  setWindow(sec){ this.windowSec = sec; }
+  ensureSeries(names){
+    // Remove any series not in names
+    for(const [name,idx] of [...this.seriesMap.entries()]){
+      if(!names.includes(name)){
+        this.seriesMap.delete(name);
+        // keep data but mark unused? simplest: clear data so it disappears
+        if(this.series[idx]) this.series[idx].data=[];
+      }
+    }
+    names.forEach(n => {
+      if(this.seriesMap.has(n)) return;
+      // find free slot
+  const used = new Set(this.seriesMap.values());
+  let slot = this.series.findIndex((s,i)=>!used.has(i) && s.data.length===0);
+      if(slot === -1){
+        // expand if below maxSeries
+        if(this.series.length < this.maxSeries){
+          const palette = ['#60a5fa','#a78bfa','#34d399','#f59e0b','#ef4444','#10b981','#0ea5e9','#6366f1','#d946ef'];
+          this.series.push({col: palette[this.series.length % palette.length], data: []});
+          slot = this.series.length -1;
+        } else return; // cannot add more
+      }
+      this.seriesMap.set(n, slot);
+    });
+  }
+  pushValue(name, t, v){
+    // t (ms?) kontrol: eğer çok büyükse (ör: 1690000000000) saniyeye çevir
+    if(t > 3e9) t = t/1000; // 2065 yılına kadar güvenli
+    if(!this.seriesMap.has(name)){
+      // Dinamik olarak eklenmiş olabilir
+      this.ensureSeries([ ...this.seriesMap.keys(), name ]);
+      if(!this.seriesMap.has(name)) return;
+    }
+    const idx = this.seriesMap.get(name);
+    const s = this.series[idx];
+    s.data.push({t:+t,v:+v});
+    // trim old
+    const cutoff = t - this.windowSec;
+    let firstValid = s.data.findIndex(p=>p.t>=cutoff);
+    if(firstValid>0) s.data.splice(0, firstValid-1); // keep one before for continuity
+    if(s.data.length>10000) s.data.splice(0, s.data.length-8000);
+  // x aralığını güncelle
+  if(!this.xmax || t > this.xmax) this.xmax = t;
+  this.xmin = this.xmax - this.windowSec;
+  }
+  draw(){
+    this.ctx = ctx2d(this.c); const ctx=this.ctx, r=this.c.getBoundingClientRect();
+    const W=r.width, H=r.height; ctx.clearRect(0,0,W,H);
+    if(this.xmax <= this.xmin){
+      this.xmax = now();
+      this.xmin = this.xmax - this.windowSec;
+    }
+    // compute range across active series
+    let y0=Infinity,y1=-Infinity; const activeIdxs=new Set(this.seriesMap.values());
+    if(activeIdxs.size===0){
+      // sadece boş eksen çiz ve mesaj göster
+      ctx.strokeStyle='#1f2430'; ctx.beginPath(); ctx.moveTo(this.pad.l,this.pad.t); ctx.lineTo(this.pad.l,H-this.pad.b); ctx.lineTo(W-this.pad.r,H-this.pad.b); ctx.stroke();
+      ctx.fillStyle='#475569'; ctx.font='12px "Inter",system-ui,sans-serif';
+      ctx.textAlign='center'; ctx.fillText('No signals selected', W/2, H/2 - 6);
+      ctx.fillText('Sinyal çiplerine tıklayın veya DBC decode etkin olsun', W/2, H/2 + 10);
+      return;
+    }
+    for(const idx of activeIdxs){ const s=this.series[idx]; for(const p of s.data){ if(p.t>=this.xmin && p.t<=this.xmax){ if(p.v<y0)y0=p.v; if(p.v>y1)y1=p.v; } } }
+    if(!isFinite(y0)){ y0=0; y1=1; } if(y0===y1){ y0-=1; y1+=1; }
+    // axes
+    ctx.strokeStyle='#1f2430'; ctx.beginPath(); ctx.moveTo(this.pad.l,this.pad.t); ctx.lineTo(this.pad.l,H-this.pad.b); ctx.lineTo(W-this.pad.r,H-this.pad.b); ctx.stroke();
+    ctx.strokeStyle='#151b24'; ctx.fillStyle='#b7c0cd'; ctx.font='11px "Inter","Segoe UI",system-ui,sans-serif';
+    for(let i=0;i<=5;i++){ const v=y0+(y1-y0)*i/5; const py=this._y(v,y0,y1); ctx.beginPath(); ctx.moveTo(this.pad.l,py); ctx.lineTo(W-this.pad.r,py); ctx.stroke(); ctx.fillText(v.toFixed(0),10,py+4); }
+    // draw each series area then line
+    for(const [name, idx] of this.seriesMap.entries()){
+      const s=this.series[idx]; if(!s) continue; ctx.lineWidth=this.lineWidth; let started=false; let firstX=null,lastX=null; let lastY=null;
+      // build path
+      ctx.beginPath();
+      for(const p of s.data){ if(p.t<this.xmin || p.t>this.xmax) continue; const xx=this._x(p.t); const yy=this._y(p.v,y0,y1); if(firstX==null) firstX=xx; lastX=xx; lastY=yy; if(!started){ ctx.moveTo(xx,yy); started=true;} else ctx.lineTo(xx,yy);}    
+      if(started){
+        // fill
+        ctx.lineTo(lastX, H-this.pad.b);
+        ctx.lineTo(firstX, H-this.pad.b);
+        ctx.closePath();
+        const col = s.col;
+        const rgbMatch = col.startsWith('#')? col.match(/#([0-9a-f]{6})/i): null;
+        let fill = col;
+        if(rgbMatch){
+          const hex=rgbMatch[1]; const rP=parseInt(hex.slice(0,2),16), gP=parseInt(hex.slice(2,4),16), bP=parseInt(hex.slice(4,6),16);
+          fill = `rgba(${rP},${gP},${bP},${this.alpha})`;
+        } else fill = 'rgba(96,165,250,'+this.alpha+')';
+        ctx.fillStyle=fill; ctx.strokeStyle=s.col; ctx.fill();
+        // redraw line path
+        ctx.beginPath(); started=false; for(const p of s.data){ if(p.t<this.xmin || p.t>this.xmax) continue; const xx=this._x(p.t), yy=this._y(p.v,y0,y1); if(!started){ ctx.moveTo(xx,yy); started=true; } else ctx.lineTo(xx,yy);} ctx.strokeStyle=s.col; ctx.stroke();
+      }
+    }
+    // legend (active)
+    const names=[...this.seriesMap.keys()]; if(names.length){
+      ctx.font='11px "Inter","Segoe UI",system-ui,sans-serif'; ctx.textAlign='left'; ctx.textBaseline='middle';
+      let x=this.pad.l+4; let y=this.pad.t+4; const lineH=16;
+      for(const n of names){ const idx=this.seriesMap.get(n); const s=this.series[idx]; const box=12; ctx.fillStyle=s.col; ctx.fillRect(x,y,box,box); ctx.strokeStyle='#0f172a'; ctx.strokeRect(x,y,box,box); ctx.fillStyle='#cbd5e1'; ctx.fillText(n, x+box+6, y+box/2); y+=lineH; }
+    }
+  }
+}

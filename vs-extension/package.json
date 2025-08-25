@@ -2,21 +2,46 @@
   "name": "can-debugger-modular",
   "displayName": "CAN Debugger (Modular)",
   "description": "Modüler webview: Speed, RPM, GPS, Fuel/Pressure/FuelRate, Temperature charts + gauges, 3D Vehicle, Live Feed (pretty JSON), status & filters.",
-  "version": "0.9.1",
-  "icon": "images/icon.png",
-  "publisher": "your-name",
+  "version": "0.9.2",
+  "icon": "images/icon.svg",
+  "publisher": "mustafa-acar",
   "engines": {
-    "vscode": "^1.84.0"
+    "vscode": "^1.74.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Visualization"
+  ],
+  "keywords": [
+    "can",
+    "j1939",
+    "automotive",
+    "dashboard",
+    "visualization"
   ],
   "main": "./extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "canDebuggerModular",
+          "title": "CAN Debugger",
+          "icon": "./images/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "canDebuggerModular": [
+        {
+          "id": "canDashboard",
+          "name": "Dashboard"
+        }
+      ]
+    },
     "commands": [
       {
-        "command": "canDebugger.openDashboard",
-        "title": "CAN Debugger: Open Dashboard"
+        "command": "canDebuggerModular.openDashboard",
+        "title": "CAN Debugger (Modular): Open Dashboard"
       }
     ],
     "configuration": {
@@ -46,8 +71,19 @@
       }
     }
   },
-  "scripts": {},
+  "scripts": {
+    "build": "node tools/copy-three.js"
+  },
   "dependencies": {
     "mqtt": "^4.3.7"
+  },
+  "activationEvents": [
+    "onCommand:canDebuggerModular.openDashboard"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   }
 }

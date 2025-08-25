@@ -6,7 +6,7 @@ let client = null;
 
 function activate(context) {
   context.subscriptions.push(
-    vscode.commands.registerCommand('canDebugger.openDashboard', () => Dashboard.createOrShow(context))
+    vscode.commands.registerCommand('canDebuggerModular.openDashboard', () => Dashboard.createOrShow(context))
   );
   ensureMqtt(context);
 }
@@ -118,7 +118,9 @@ class Dashboard {
       {
         enableScripts: true, 
         retainContextWhenHidden: true,
-        localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')]
+        localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')],
+        // Webview'ın CSP kurallarını ayarla
+        enableFindWidget: true
       }
     );
     Dashboard.instance = new Dashboard(panel, context);
@@ -130,16 +132,32 @@ class Dashboard {
     const uiPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'index.html');
     let html = fs.readFileSync(uiPath.fsPath, 'utf8');
     
-  // CSP genişletildi: OSM tile sunucusu ve (isteğe bağlı) HTTPS fetch izinleri eklendi
-  // Harita fetch() çağrıları connect-src kapsamına girer, img-src de güvenli olsun diye domain eklenir.
-  const tileHost = 'https://tile.openstreetmap.org';
-  // Tile yüklemede artık fetch değil <img> kullanıldığı için tile host sadece img-src'de yeterli
-  const csp = `default-src 'none'; img-src ${wv.cspSource} data: blob: ${tileHost}; style-src ${wv.cspSource} 'unsafe-inline'; script-src ${wv.cspSource} 'unsafe-eval'; connect-src ${wv.cspSource} blob:; worker-src blob:;`;
+    // CSP kurallarını güncelle - VS Code WebView uyumluluğu geliştirmeleri
+    const tileHost = 'https://tile.openstreetmap.org';
+    const cdnJsHost = 'https://cdn.jsdelivr.net';
+    // VS Code WebView için güncellenmiş CSP ayarları:
+    // - Chart.js ve diğer CDN'ler için eklenen kurallar
+    // - ESM modül yüklemelerini desteklemek için daha geniş izinler
+    const csp = `
+      default-src 'none'; 
+      img-src ${wv.cspSource} data: blob: ${tileHost}; 
+      style-src ${wv.cspSource} 'unsafe-inline'; 
+      font-src ${wv.cspSource} data:;
+      script-src ${wv.cspSource} 'unsafe-inline' 'unsafe-eval' ${cdnJsHost}; 
+      connect-src ${wv.cspSource} blob: ${cdnJsHost}; 
+      worker-src blob:;
+    `.replace(/\s+/g, ' ').trim();
+    
     html = html.replace('<head>', `<head><meta http-equiv="Content-Security-Policy" content="${csp}">`);
     
-    const cssUri = mediaUri('css', 'dashboard.css');
-    const vehUri = mediaUri('vehicle.glb');
+    // CSS dosyalarını ekle
+  const cssUri = mediaUri('css', 'dashboard.css');
+  const fontsCssUri = mediaUri('css', 'fonts.css');
+    const signalsCssUri = mediaUri('css', 'signals.css');
+    const vsCompatCssUri = mediaUri('css', 'vscode-compat.css');
     
+    // GLB model URI'si
+    const vehUri = mediaUri('vehicle.glb');
     console.log('Vehicle URI:', vehUri);
     
     // App.js dosyasını oku ve URI'yi replace et, sonra temp dosyaya yaz
@@ -151,7 +169,14 @@ class Dashboard {
     
     const appTempUri = mediaUri('js', 'app_temp.js');
     
-    html = html.replace('__CSS_URI__', cssUri).replace('__APP_JS__', appTempUri);
+    // URI yer tutucuları değiştir
+    html = html
+  .replace('__CSS_URI__', cssUri)
+      .replace('__SIGNALS_CSS_URI__', signalsCssUri)
+      .replace('__VS_COMPAT_CSS__', vsCompatCssUri)
+  .replace('__FONTS_CSS__', fontsCssUri)
+      .replace('__APP_JS__', appTempUri);
+    
     this.panel.webview.html = html;
   }
   

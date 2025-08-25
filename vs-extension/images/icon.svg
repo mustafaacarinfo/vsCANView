@@ -22,7 +22,7 @@
   <!-- CAN bus waveform stylized line -->
   <path d="M16 20 h12 v12 h12 V20 h12 v12 h12 V20 h12" stroke="#55c1ff" stroke-width="4" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
   <!-- Title letters minimal C A N -->
-  <g fill="#55c1ff" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="14">
+  <g fill="#55c1ff" font-family="Arial,sans-serif" font-weight="600" font-size="14">
     <text x="18" y="90">CAN</text>
   </g>
 </svg>

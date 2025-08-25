@@ -5,7 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CAN Debugger – Modular</title>
   <!-- debug.js kaldırıldı (erişim hatası veriyordu) -->
+  <link rel="stylesheet" href="__FONTS_CSS__" />
   <link rel="stylesheet" href="__CSS_URI__" />
+  <link rel="stylesheet" href="__SIGNALS_CSS_URI__" />
+  <!-- Chart.js için modül tanımlaması -->
+  <script type="importmap">
+    {
+      "imports": {
+        "chart.js": "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/+esm",
+        "chartjs-adapter-date-fns": "https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/+esm"
+      }
+    }
+  </script>
 </head>
 <body>
   <div class="nav"><div>🏠 Dashboards › <b>j1939-truck</b></div><div style="color:#9fb0c4">CAN Debugger – Modular</div></div>
@@ -13,6 +24,7 @@
   <div class="tabs">
   <div class="tab active" data-tab="dash">Overview</div>
   <div class="tab" data-tab="feed">Live Monitor</div>
+  <div class="tab" data-tab="signals">Signal Analysis</div>
   <div class="tab" data-tab="dtc">Diagnostics</div>
   <div class="tab" data-tab="sim">Simulator</div>
   <div class="tab" data-tab="log">Log Replay</div>
@@ -161,6 +173,49 @@
         <button id="exportFeed" class="btn">Export JSON</button>
       </div>
       <div id="feed"></div>
+    </div>
+  </div>
+
+  <div id="page-signals" class="page">
+    <div class="signals-container">
+      <div class="signals-header">
+  <h2>Multi Signal Chart</h2>
+        <div class="signals-controls">
+          <button id="clearSignalChartData" class="btn" title="Grafik verilerini temizle">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+            Grafikleri Temizle
+          </button>
+        </div>
+      </div>
+      
+      <div class="signal-panel">
+        <div class="signal-panel-header">
+          <h3>Signal Monitor</h3>
+          <div class="signal-selector">
+            <label>Signals to Track (max 5):</label>
+            <div id="multiSignalCheckboxes" class="signal-list">
+              <!-- Sinyal seçim kutuları buraya dinamik olarak eklenecek -->
+            </div>
+          </div>
+        </div>
+        <div class="signal-chart-container">
+          <canvas id="multiSignalAreaChart" height="350"></canvas>
+        </div>
+      </div>
+      
+      <div class="signal-info-panel">
+  <h3>Usage Info</h3>
+  <p>This panel lets you track multiple decoded CAN signals in real time.</p>
+        <ul>
+          <li>Up to 5 signals may be selected</li>
+          <li>Selected signals render with distinct colors</li>
+          <li>Automatic scaling</li>
+          <li>Shows last 60 seconds</li>
+        </ul>
+        <div class="signals-legend" id="signalLegend">
+          <!-- Sinyal renk lejantı buraya eklenecek -->
+        </div>
+      </div>
     </div>
   </div>
 

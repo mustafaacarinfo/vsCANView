@@ -541,7 +541,7 @@ export class LineChart {
     }
   const canFill = this._showGradient && started && this._primed; // priming tamamlanmadan alan doldurma yok
   if(canFill){
-      // Alan kapat
+      // Alan kapat - primed olduktan sonra alan dolgu uygula
       ctx.save();
       const grad = ctx.createLinearGradient(0,this.pad.t,0,H-this.pad.b);
       const base = this._hexToRgb(this.col) || {r:96,g:165,b:250};
@@ -562,24 +562,20 @@ export class LineChart {
     if(this.showTimeAxis){
       const timeSpan = this.xmax - this.xmin;
       const approxTicks = Math.max(4, Math.min(8, Math.floor(W / 80))); // Genişliğe göre tick sayısı
-      // Yaklaşık tick aralığı (s) hesapla (1,5,10,30,60,120...)
       const candidates = [1,5,10,15,30,60,120,300,600,900,1800,3600,7200];
       let tickStep = candidates[candidates.length-1];
       for(const c of candidates){ if(timeSpan / c <= approxTicks){ tickStep=c; break; } }
-      
-      // İlk tick'i zaman aralığına göre hizala
+
       const firstTick = Math.ceil(this.xmin / tickStep) * tickStep;
-      
       ctx.fillStyle='#94a3b8'; 
-  ctx.font='11px "Inter","Segoe UI",system-ui,sans-serif'; 
+      ctx.font='11px "Inter","Segoe UI",system-ui,sans-serif'; 
       ctx.textAlign='center';
       ctx.textBaseline='top';
-      
-      // Grid çizgileri ve etiketler
+
       for(let t = firstTick; t <= this.xmax + tickStep/2; t += tickStep){
         const x = this._x(t);
         if(x < this.pad.l - 5 || x > W - this.pad.r + 5) continue;
-        
+
         // Dikey grid çizgisi
         ctx.save();
         ctx.strokeStyle='#2a3441'; 
@@ -588,7 +584,7 @@ export class LineChart {
         ctx.moveTo(x, this.pad.t); 
         ctx.lineTo(x, H - this.pad.b); 
         ctx.stroke();
-        
+
         // Tick mark
         ctx.strokeStyle='#1e2532'; 
         ctx.lineWidth = 1;
@@ -596,7 +592,7 @@ export class LineChart {
         ctx.moveTo(x, H - this.pad.b); 
         ctx.lineTo(x, H - this.pad.b + 4); 
         ctx.stroke();
-        
+
         // Time label
         const timeLabel = this._formatXAxisTime(t);
         ctx.fillText(timeLabel, x, H - this.pad.b + 25);

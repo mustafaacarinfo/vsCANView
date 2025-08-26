@@ -120,10 +120,19 @@ tabs.forEach(t => t.addEventListener('click', () => {
     else if (t.dataset.tab === 'signals' && multiSignalChart) {
       console.log('Signal Analysis sekmesine geçildi, grafiği etkinleştiriliyor');
       multiSignalChart.setVisible(true);
-      setTimeout(() => {
-        // Canvas'ı yeniden boyutlandır ve çiz
-        multiSignalChart.draw();
-      }, 100);
+      // Multiple timed attempts to resize & draw to handle CSS transitions / webview sizing races
+      const tryDraw = () => {
+        try {
+          if (multiSignalChart && typeof multiSignalChart.draw === 'function') multiSignalChart.draw();
+          if (multiSignalChart && multiSignalChart.chart) {
+            try { multiSignalChart.chart.resize(); multiSignalChart.chart.update('none'); } catch(e){}
+          }
+        } catch(e){ /* ignore */ }
+      };
+      requestAnimationFrame(tryDraw);
+      setTimeout(tryDraw, 50);
+      setTimeout(tryDraw, 150);
+      setTimeout(tryDraw, 350);
     } 
     // Sinyal sekmesinden çıkıldığında grafiği pasifleştir (performans için)
     else if (multiSignalChart) {
@@ -391,13 +400,14 @@ requestAnimationFrame(() => {
 import('./seed.mjs').then(m=>m.seedAll({speed,rpm,pressure,fuelRate,fuelGauge,navMap}));
 
 // 3D viewer - URI kontrolü ve başlatma
-let vehicleUri = 'https://vscode-remote%2Bcodespaces-002bredesigned-002dpotato-002d95vggq9656427xvg.vscode-resource.vscode-cdn.net/workspaces/vsCANView/vs-extension/media/vehicle.glb';
+// Replaced with token so extension can inject a webview-safe URI at runtime
+let vehicleUri = '__VEHICLE_URI__';
 let viewer = null;
 
 console.log('Vehicle URI kontrol ediliyor:', vehicleUri);
 
 // URI placeholder değiştirilmişse direkt başlat
-if (vehicleUri && vehicleUri !== 'https://vscode-remote%2Bcodespaces-002bredesigned-002dpotato-002d95vggq9656427xvg.vscode-resource.vscode-cdn.net/workspaces/vsCANView/vs-extension/media/vehicle.glb') {
+if (vehicleUri && vehicleUri !== '__VEHICLE_URI__') {
   console.log('Vehicle URI bulundu, VehicleViewer başlatılıyor:', vehicleUri);
   startVehicleViewer(vehicleUri);
 } else {

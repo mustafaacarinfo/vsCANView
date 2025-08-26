@@ -4,7 +4,7 @@ let THREE, GLTFLoader;
 async function loadThreeStack(){
   if(THREE && GLTFLoader) return;
   try {
-    const m = await import('./vendor/three.module.js?v=2');
+  const m = await import('./vendor/three.module.js');
     THREE = m;
   } catch(e){
     console.error('[viewer] three.module dyn import fail:', e.message);
@@ -13,9 +13,9 @@ async function loadThreeStack(){
   try {
     console.time('[viewer] GLTFLoader import');
     // Mutlak yol sağlam import için
-    const absPath = new URL('./vendor/GLTFLoader.js', import.meta.url).href;
-    console.log('[viewer] GLTFLoader yolu:', absPath);
-    const gltfMod = await import(absPath + '?v=7');
+  const absPath = new URL('./vendor/GLTFLoader.js', import.meta.url).href;
+  console.log('[viewer] GLTFLoader yolu:', absPath);
+  const gltfMod = await import(absPath);
     console.timeEnd('[viewer] GLTFLoader import');
     if (!gltfMod || !gltfMod.GLTFLoader) throw new Error('GLTFLoader export missing');
     GLTFLoader = gltfMod.GLTFLoader;

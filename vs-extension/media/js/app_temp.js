@@ -401,7 +401,7 @@ import('./seed.mjs').then(m=>m.seedAll({speed,rpm,pressure,fuelRate,fuelGauge,na
 
 // 3D viewer - URI kontrolü ve başlatma
 // Replaced with token so extension can inject a webview-safe URI at runtime
-let vehicleUri = '__VEHICLE_URI__';
+let vehicleUri = 'https://vscode-remote%2Bcodespaces-002bredesigned-002dpotato-002d95vggq9656427xvg.vscode-resource.vscode-cdn.net/workspaces/vsCANView/vs-extension/media/vehicle.glb';
 let viewer = null;
 
 console.log('Vehicle URI kontrol ediliyor:', vehicleUri);

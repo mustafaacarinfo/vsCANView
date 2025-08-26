@@ -8,13 +8,13 @@ export class VehicleViewer {
       console.log('VehicleViewer başlatılıyor...');
       console.log('Model URI:', this.modelUri);
       // ES6 modül yaklaşımı
-      console.log('Three.js ES6 modül olarak yükleniyor...');
-      
-      const THREE = await import('https://cdn.skypack.dev/three@0.137.0');
-      console.log('THREE.js yüklendi:', THREE);
-      
-      const { GLTFLoader } = await import('https://cdn.skypack.dev/three@0.137.0/examples/jsm/loaders/GLTFLoader.js');
-      console.log('GLTFLoader yüklendi:', GLTFLoader);
+  console.log('Three.js ES6 modül olarak yükleniyor (yerel)...');
+  // Local module imports to ensure single Three instance in webview
+  const THREE = await import(new URL('./vendor/three.module.js', import.meta.url).href);
+  console.log('THREE.js yüklendi (local):', THREE);
+  const gltfLoaderMod = await import(new URL('./vendor/GLTFLoader.js', import.meta.url).href);
+  const { GLTFLoader } = gltfLoaderMod;
+  console.log('GLTFLoader yüklendi (local):', GLTFLoader);
       console.log('GLTFLoader yüklendi');
       console.log('GLTFLoader yüklendi');
       this.THREE=THREE;

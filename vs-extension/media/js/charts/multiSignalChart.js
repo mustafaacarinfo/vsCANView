@@ -93,17 +93,18 @@ export class MultiSignalChart {
       
       if (rect.width === 0 || rect.height === 0 || !containerVisible) {
         console.warn('Canvas görünmez veya boyutları sıfır, boyutlandırma erteleniyor');
-        canvas.style.width = '100%';
+        // Fallback sabit boyutlar (pixel bazlı)
+        canvas.style.width = '800px';
         canvas.style.height = '300px';
-        // Görünür olmadığından veya boyutu hesaplanamadığından varsayılan değerler kullan
         canvas.width = 800 * dpr;
         canvas.height = 300 * dpr;
       } else {
         console.log('Canvas boyutları:', rect.width, 'x', rect.height);
-        canvas.style.width = '100%';
-        canvas.style.height = '300px';
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
+        // Set CSS size to the measured layout size so Chart.js and CSS agree
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
       }
       
       // Mevcut grafiği temizle
@@ -205,10 +206,10 @@ export class MultiSignalChart {
       }
     };
     
-    try {
-      // createChartCore yerine doğrudan Chart.js kullan
-      console.log('Chart.js ile grafik oluşturuluyor, config:', chartConfig);
-      this.chart = new Chart(canvas, chartConfig);
+      try {
+        // createChartCore yerine doğrudan Chart.js kullan
+        console.log('Chart.js ile grafik oluşturuluyor, config:', chartConfig);
+        this.chart = new Chart(canvas, chartConfig);
       console.log('Chart başarıyla oluşturuldu:', this.chart);
       // Safety: on window resize ensure Chart.js resizes (some webviews don't forward ResizeObserver events)
       try {
@@ -244,15 +245,16 @@ export class MultiSignalChart {
       // Bu, bazı tarayıcılarda görünürlük değişimlerinde boyutlandırma sorunlarını çözer
       setTimeout(() => {
         if (this.chart) {
-          canvas.style.width = '100%';
-          canvas.style.height = '300px';
-          this.chart.resize();
+          const r2 = canvas.getBoundingClientRect();
+          canvas.style.width = r2.width + 'px';
+          canvas.style.height = r2.height + 'px';
+          try { this.chart.resize(); } catch(e){}
           console.log('Chart boyutu ayarlandı:', canvas.width, 'x', canvas.height);
-          
+
           // İkinci bir resize 200ms sonra
           setTimeout(() => {
             if (this.chart) {
-              this.chart.resize();
+              try { this.chart.resize(); } catch(e){}
               console.log('Chart boyutu tekrar ayarlandı');
             }
           }, 200);
@@ -467,10 +469,11 @@ export class MultiSignalChart {
       // Canvas boyutlarını tekrar ayarla ve grafiği güncelle
       const canvas = document.getElementById(this.canvasId);
       if (canvas) {
-        canvas.style.width = '100%';
-        canvas.style.height = '300px';
-        this.chart.resize();
-        this.chart.update();
+        const r = canvas.getBoundingClientRect();
+        canvas.style.width = r.width + 'px';
+        canvas.style.height = r.height + 'px';
+        try { this.chart.resize(); } catch(e){}
+        try { this.chart.update(); } catch(e){}
         console.log('MultiSignalChart çizildi ve güncellendi.');
       }
     } catch (err) {

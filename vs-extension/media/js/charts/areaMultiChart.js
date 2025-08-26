@@ -1,7 +1,7 @@
 // Live Monitor için çoklu sinyal alan grafiği bileşeni
 // Maksimum 5 sinyal serisi destekler
 
-import { now } from '../core/chartCore.js';
+import { now, ctx2d } from '../core/chartCore.js';
 
 export class AreaMultiChart {
   constructor(canvas) {
@@ -179,31 +179,26 @@ export class AreaMultiChart {
   // Grafiği çizer
   draw() {
     if (!this.canvas || !this.ctx) return;
-    
-    const ctx = this.ctx;
-    const canvas = this.canvas;
-    const padding = this.padding;
-    
-    // Ölçeklendirme değerlerini kontrol et
+  const canvas = this.canvas;
+  const padding = this.padding;
+
+  // Recreate 2d context and handle high-DPI scaling reliably
+  const newCtx = ctx2d(canvas);
+  if (!newCtx) return;
+  this.ctx = newCtx;
+  const ctx = this.ctx;
+
+  // Ölçeklendirme değerlerini kontrol et
     if (this.minY === this.maxY) {
       this.maxY = this.minY + 1; // Eşit değerler varsa, görüntülemek için fark oluştur
     }
-    
-    // Canvas boyutunu ayarla
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    
-    // Canvas boyutlarını ayarla
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
-    
-    // Canvas'ı temizle
-    ctx.clearRect(0, 0, rect.width, rect.height);
-    
-    // Çizim alanı boyutlarını hesapla
-    const width = rect.width;
-    const height = rect.height;
+  // Canvas'ı temizle (CSS pixel ölçüleri kullanılarak)
+  const rect = canvas.getBoundingClientRect();
+  ctx.clearRect(0, 0, rect.width, rect.height);
+
+  // Çizim alanı boyutlarını hesapla
+  const width = rect.width;
+  const height = rect.height;
     const chartWidth = width - padding.left - padding.right;
     const chartHeight = height - padding.top - padding.bottom;
     

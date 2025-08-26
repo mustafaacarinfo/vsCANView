@@ -573,12 +573,21 @@ export class MultiSignalChart {
       this.selectedSignals.clear();
     } catch (e) { /* ignore for compatibility */ }
 
-    // Clear available signals metadata but keep map instance
+    // Clear available signals metadata so that updateAvailableSignals will recreate UI
     if (this._allAvailableSignals) {
-      this._allAvailableSignals.forEach((v, k) => {
-        v.lastValue = null; v.lastUpdated = Date.now();
-      });
+      try {
+        this._allAvailableSignals.clear();
+      } catch (e) {
+        // Fallback: replace with new map
+        this._allAvailableSignals = new Map();
+      }
+    } else {
+      this._allAvailableSignals = new Map();
     }
+    // Reset search initialization so search wiring will be reattached when signals reappear
+    this._searchInitialized = false;
+    // Reset color index so new signals start with predictable colors
+    this.colorIndex = 0;
 
     // Remove all datasets from Chart.js instance
     if (this.chart && this.chart.data) {

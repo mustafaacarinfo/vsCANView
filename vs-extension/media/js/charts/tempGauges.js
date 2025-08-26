@@ -1,10 +1,12 @@
+import { ctx2d } from '../core/chartCore.js';
+
 export class TemperatureGauges {
     constructor(canvas) {
         this.canvas = canvas;
         this.initialized = false;
         this.engineTempGauge = null;
         this.coolantTempGauge = null;
-        this.ctx = canvas.getContext('2d');
+        this.ctx = ctx2d(canvas);
         this.resizeObserver = null;
         this.init();
         this.setupResizeObserver();
@@ -29,10 +31,12 @@ export class TemperatureGauges {
         if (!this.canvas) return;
         
         try {
-            const width = this.canvas.clientWidth;
-            const height = this.canvas.clientHeight;
+            const rect = this.canvas.getBoundingClientRect();
+            const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+            const widthCss = Math.max(1, Math.round(rect.width));
+            const heightCss = Math.max(1, Math.round(rect.height));
             
-            console.log(`📐 Updating temperature gauge sizes: ${width}x${height}`);
+            console.log(`📐 Updating temperature gauge sizes: ${widthCss}x${heightCss}`);
             
             // Skip if dimensions are too small
             if (width < 20 || height < 20) {
@@ -42,18 +46,21 @@ export class TemperatureGauges {
             
             // Update offscreen canvases
             if (this.engineTempCanvas) {
-                this.engineTempCanvas.width = width / 2;
-                this.engineTempCanvas.height = height;
+                this.engineTempCanvas.style.width = (widthCss/2) + 'px';
+                this.engineTempCanvas.style.height = heightCss + 'px';
+                this.engineTempCanvas.width = Math.round((widthCss/2) * dpr);
+                this.engineTempCanvas.height = Math.round(heightCss * dpr);
             }
-            
+
             if (this.coolantTempCanvas) {
-                this.coolantTempCanvas.width = width / 2;
-                this.coolantTempCanvas.height = height;
+                this.coolantTempCanvas.style.width = (widthCss/2) + 'px';
+                this.coolantTempCanvas.style.height = heightCss + 'px';
+                this.coolantTempCanvas.width = Math.round((widthCss/2) * dpr);
+                this.coolantTempCanvas.height = Math.round(heightCss * dpr);
             }
-            
-            // Main canvas
-            this.canvas.width = width;
-            this.canvas.height = height;
+
+            // Main canvas via ctx2d to synchronize CSS size and backing store
+            this.ctx = ctx2d(this.canvas);
             
             // Redraw after resize
             this.draw();
@@ -78,14 +85,23 @@ export class TemperatureGauges {
             
             console.log(`📐 Creating temperature gauges with size: ${width}x${height}`);
             
-            // Create off-screen canvases for each gauge
+            // Create off-screen canvases for each gauge (set DPR-scaled backing store)
+            const rect = this.canvas.getBoundingClientRect();
+            const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+            const widthCss = Math.max(1, Math.round(rect.width));
+            const heightCss = Math.max(1, Math.round(rect.height));
+
             this.engineTempCanvas = document.createElement('canvas');
-            this.engineTempCanvas.width = width / 2;
-            this.engineTempCanvas.height = height;
-            
+            this.engineTempCanvas.style.width = (widthCss/2) + 'px';
+            this.engineTempCanvas.style.height = heightCss + 'px';
+            this.engineTempCanvas.width = Math.round((widthCss/2) * dpr);
+            this.engineTempCanvas.height = Math.round(heightCss * dpr);
+
             this.coolantTempCanvas = document.createElement('canvas');
-            this.coolantTempCanvas.width = width / 2;
-            this.coolantTempCanvas.height = height;
+            this.coolantTempCanvas.style.width = (widthCss/2) + 'px';
+            this.coolantTempCanvas.style.height = heightCss + 'px';
+            this.coolantTempCanvas.width = Math.round((widthCss/2) * dpr);
+            this.coolantTempCanvas.height = Math.round(heightCss * dpr);
             
             // Initialize gauges with separate canvases and try-catch blocks
             try {

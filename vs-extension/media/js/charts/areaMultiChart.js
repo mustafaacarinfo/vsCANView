@@ -6,7 +6,8 @@ import { now, ctx2d } from '../core/chartCore.js';
 export class AreaMultiChart {
   constructor(canvas) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
+  // context will be created lazily with ctx2d(canvas) during draw()
+  this.ctx = null;
     this.series = new Map(); // Sinyal serilerini saklar
     this.maxSeries = 5; // Maksimum izin verilen sinyal sayısı
     this.dataPoints = 100; // Gösterilecek maksimum veri noktası sayısı

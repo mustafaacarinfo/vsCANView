@@ -19,8 +19,11 @@ export function ctx2d(canvas){
   if(canvas.width !== W || canvas.height !== H){ 
     canvas.width = W; 
     canvas.height = H; 
-    canvas.style.width = r.width + 'px';
-    canvas.style.height = r.height + 'px';
+    // Ensure CSS pixel size matches layout size so drawing coordinates align
+    try {
+      canvas.style.width = r.width + 'px';
+      canvas.style.height = r.height + 'px';
+    } catch(e) { /* ignore readonly style errors in some environments */ }
   }
   
   const ctx = canvas.getContext('2d', { 

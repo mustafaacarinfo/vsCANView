@@ -1,4 +1,4 @@
-import { now } from './core/chartCore.js';
+import { now, ctx2d } from './core/chartCore.js';
 import { SpeedChart } from './charts/speedChart.js';
 import { RpmChart }   from './charts/rpmChart.js';
 import { NavMap } from './maps/navMap.js';
@@ -292,6 +292,40 @@ if (document.getElementById('multiSignalAreaChart')) {
   multiSignalChart.setVisible(isSignalsTabActive);
   console.log('MultiSignalChart başlatıldı ve çizildi:', isSignalsTabActive ? 'görünür' : 'gizli');
 }
+
+// Fullscreen / minimize / layout change handler: bazı webview ve tarayıcılarda
+// fullscreen/minimize sırasında canvas CSS/internal pixel boyutları uyumsuz olabiliyor.
+// document fullscreen değişiminde tüm grafikleri yeniden boyutlandır ve çiz.
+function onLayoutChangeForceResize() {
+  try {
+    console.log('Layout change detected: forcing chart resize/draw');
+    // First, ensure all canvas elements have their CSS size / backing store synchronized
+    try {
+      const canvases = document.querySelectorAll('canvas');
+      canvases.forEach(c => {
+        try { ctx2d(c); } catch(e) { /* ignore individual canvas errors */ }
+      });
+    } catch(e) { /* ignore */ }
+    // dashboard charts
+    try { speed.draw(); } catch(e){}
+    try { rpm.draw(); } catch(e){}
+    try { navMap.draw(); } catch(e){}
+    try { pressure.draw(); } catch(e){}
+    try { fuelRate.draw(); } catch(e){}
+    try { fuelGauge.draw(); } catch(e){}
+    try { engineGauges.draw(); } catch(e){}
+    // area / signal charts
+    try { if(areaChart) areaChart.draw(); } catch(e){}
+    try { if(multiSignalChart) { multiSignalChart.initChart(); multiSignalChart.draw(); } } catch(e){}
+  } catch (err) { console.warn('onLayoutChangeForceResize failed', err); }
+}
+
+// Listen to fullscreenchange and visibilitychange (some hosts use visibility)
+document.addEventListener('fullscreenchange', onLayoutChangeForceResize);
+document.addEventListener('webkitfullscreenchange', onLayoutChangeForceResize);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) onLayoutChangeForceResize();
+});
 
 // Engine parametre value elementleri
 const oilPressureValEl = document.getElementById('oilPressureVal');

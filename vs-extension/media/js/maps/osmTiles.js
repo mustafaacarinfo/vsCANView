@@ -1,6 +1,10 @@
+import { ctx2d } from '../core/chartCore.js';
+
 export class OSMCanvas {
   constructor(canvas){
-    this.c = canvas; this.ctx = canvas.getContext('2d');
+    this.c = canvas; 
+    // create context lazily via ctx2d during draw to handle DPR and hidden->visible transitions
+    this.ctx = null;
     this.zoom = 12; this.center = { lat: 41.0082, lon: 28.9784 };
     this.drag = null;
     this.tileCache = new Map(); // key -> HTMLImageElement
@@ -96,19 +100,15 @@ export class OSMCanvas {
     this.center = {lat,lon}; this.draw();
   }
   async draw(){
-    const r=this.c.getBoundingClientRect();
-    if(r.width===0||r.height===0) return;
-    
-    // Canvas boyutunu device pixel ratio ile ayarla ama sınırla
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.c.width=r.width*dpr; 
-    this.c.height=r.height*dpr;
-    
-    const ctx=this.ctx; 
-    ctx.setTransform(dpr,0,0,dpr,0,0); 
-    ctx.clearRect(0,0,r.width,r.height);
-    ctx.fillStyle='#0f1620'; 
-    ctx.fillRect(0,0,r.width,r.height);
+  const r = this.c.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return;
+
+  // Use centralized ctx2d to ensure CSS/backing-store and DPR are synced
+  const ctx = ctx2d(this.c) || this.c.getContext('2d');
+  this.ctx = ctx;
+  ctx.clearRect(0, 0, r.width, r.height);
+  ctx.fillStyle = '#0f1620';
+  ctx.fillRect(0, 0, r.width, r.height);
     
     const z=this.zoom, n=Math.pow(2,z);
     if(!isFinite(this.center.lat) || !isFinite(this.center.lon)) return;

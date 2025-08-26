@@ -370,19 +370,8 @@ function clearAllCharts() {
 
 // Ana temizleme butonu ile tüm grafikleri temizle, bu butonu Signal Analysis sekmesi için de kullanacağız
 document.getElementById('clearCharts')?.addEventListener('click', () => {
-  // Tüm dashboard grafikleri
-  speed?.clearData();
-  rpm?.clearData();
-  pressure?.clearData(); 
-  fuelRate?.clearData();
-  fuelGauge?.setValue(0);
-  
-  // Signal Analysis grafikleri
-  if (multiSignalChart) {
-    multiSignalChart.clearData();
-  }
-  
-  console.log('Tüm grafikler temizlendi');
+  clearAllCharts();
+  console.log('Tüm grafikler ve göstergeler sıfırlandı');
 });
 
 // Grafiklerin ilk çizimini planla

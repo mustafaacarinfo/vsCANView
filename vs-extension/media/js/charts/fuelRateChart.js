@@ -1,4 +1,4 @@
-import { LineChart, now } from '../core/chartCore.js';
+import { LineChart, now, ctx2d } from '../core/chartCore.js';
 
 export class FuelRateChart extends LineChart {
   constructor(canvas) {
@@ -6,6 +6,27 @@ export class FuelRateChart extends LineChart {
     referenceLines:[{ value:10, label:'10', color:'#64748b', dash:[6,4] }], autoMidline:true, showTimeAxis:true, timeAxisFormat:'HH:MM' });
     this.points = [];
     this.setRange(now()-60, now());
+  // Prevent overlap with the adjacent fuel gauge indicator by reserving extra right padding
+  // Increase if existing right padding is smaller than 60px
+  try { this.pad.r = Math.max(this.pad.r || 20, 60); } catch(e){}
+    // Robustness: observe resize/visibility changes and ensure backing-store is synced
+    try {
+      if (window.ResizeObserver) {
+        this._ro = new ResizeObserver(() => {
+          try { ctx2d(this.c); } catch(e){}
+          try { this._cached = {}; this.draw(); } catch(e){}
+        });
+        // observe the canvas and its container
+        this._ro.observe(this.c);
+        if (this.c.parentElement) this._ro.observe(this.c.parentElement);
+      }
+    } catch(e) {}
+
+    // Also handle fullscreen/visibility events as fallback
+    const ensure = () => { try { ctx2d(this.c); this._cached = {}; this.draw(); } catch(e){} };
+    document.addEventListener('fullscreenchange', ensure);
+    document.addEventListener('webkitfullscreenchange', ensure);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) ensure(); });
   }
   
   pushSample(t, v) {

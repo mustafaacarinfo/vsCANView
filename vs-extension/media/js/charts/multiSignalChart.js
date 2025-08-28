@@ -1,6 +1,7 @@
 // multiSignalChart.js - Code for multi-signal monitoring chart
 // Chart.js import (date adapter kaldırıldı - linear zaman ekseni kullanılacak)
 import { Chart, registerables } from 'chart.js';
+import { ctx2d } from '../core/chartCore.js';
 // Chart.js tree-shaking nedeniyle gerekli bileşenleri kaydet
 Chart.register(...registerables);
 
@@ -93,18 +94,17 @@ export class MultiSignalChart {
       
       if (rect.width === 0 || rect.height === 0 || !containerVisible) {
         console.warn('Canvas görünmez veya boyutları sıfır, boyutlandırma erteleniyor');
-        // Fallback sabit boyutlar (pixel bazlı)
-        canvas.style.width = '800px';
-        canvas.style.height = '300px';
-        canvas.width = 800 * dpr;
-        canvas.height = 300 * dpr;
+        // Let ctx2d schedule retries and provide a minimal backing store
+        try { ctx2d(canvas); } catch(e){}
       } else {
         console.log('Canvas boyutları:', rect.width, 'x', rect.height);
-        // Set CSS size to the measured layout size so Chart.js and CSS agree
-        canvas.style.width = rect.width + 'px';
-        canvas.style.height = rect.height + 'px';
-        canvas.width = Math.round(rect.width * dpr);
-        canvas.height = Math.round(rect.height * dpr);
+        try { ctx2d(canvas); } catch(e){
+          // Fallback to manual sizing
+          canvas.style.width = rect.width + 'px';
+          canvas.style.height = rect.height + 'px';
+          canvas.width = Math.round(rect.width * dpr);
+          canvas.height = Math.round(rect.height * dpr);
+        }
       }
       
       // Mevcut grafiği temizle
@@ -231,8 +231,8 @@ export class MultiSignalChart {
             for (const ent of entries) {
               const rect = ent.contentRect || target.getBoundingClientRect();
               if (rect.width > 0 && rect.height > 0) {
-                canvas.width = rect.width * (window.devicePixelRatio || 1);
-                canvas.height = rect.height * (window.devicePixelRatio || 1);
+                // Ensure backing store matches layout via central helper
+                try { ctx2d(canvas); } catch(e){}
                 try { this.chart.resize(); this.chart.update('none'); } catch(e){ /* ignore */ }
               }
             }

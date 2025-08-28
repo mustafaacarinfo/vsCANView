@@ -9,6 +9,27 @@ function activate(context) {
     vscode.commands.registerCommand('canDebuggerModular.openDashboard', () => Dashboard.createOrShow(context))
   );
   ensureMqtt(context);
+  // VSCode uzantısı başlatıldığında otomatik panel aç
+  if (vscode.window.registerWebviewPanelSerializer) {
+    // VSCode 1.74+ için
+    Dashboard.createOrShow(context);
+  }
+
+  // Basit bir TreeDataProvider kaydet: activity bar içindeki view için veri sağlayacak
+  class OpenDashboardProvider {
+    getTreeItem(element) {
+      return element;
+    }
+    getChildren() {
+      const item = new vscode.TreeItem('Open Dashboard');
+      item.command = { command: 'canDebuggerModular.openDashboard', title: 'Open Dashboard' };
+      item.contextValue = 'openDashboard';
+      return [item];
+    }
+  }
+
+  const provider = new OpenDashboardProvider();
+  context.subscriptions.push(vscode.window.registerTreeDataProvider('canDashboard', provider));
 }
 
 function deactivate() { 
@@ -101,6 +122,40 @@ class Dashboard {
         const vehUri = mediaUri('vehicle.glb');
         console.log('Vehicle URI gönderiliyor:', vehUri);
         this.panel.webview.postMessage({ type: 'vehicleUri', uri: vehUri });
+      }
+    });
+    
+    // Panel görünürlük değişiminde webview'e Overview mesajı gönder
+    panel.onDidChangeViewState(e => {
+      try {
+        if (e.webviewPanel.visible) {
+          e.webviewPanel.webview.postMessage({ type: 'showOverview' });
+        }
+      } catch (err) { /* ignore */ }
+    });
+
+    // Webview'dan gelen mesajları dinle
+    panel.webview.onDidReceiveMessage((message) => {
+      console.log('Extension\'da mesaj alındı:', message);
+      if (message.type === 'getVehicleUri') {
+        const wv = this.panel.webview;
+        const mediaUri = (...p) => wv.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', ...p)).toString();
+        const vehUri = mediaUri('vehicle.glb');
+        console.log('Vehicle URI gönderiliyor:', vehUri);
+        this.panel.webview.postMessage({ type: 'vehicleUri', uri: vehUri });
+        return;
+      }
+
+      // Webview hazır olduğunu bildirdiğinde Overview talep et
+      if (message.type === 'ready') {
+        try {
+          this.panel.webview.postMessage({ type: 'showOverview' });
+          // Ayrıca vehicle URI gönderebiliriz (webview hazırsa)
+          const wv = this.panel.webview;
+          const mediaUri = (...p) => wv.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', ...p)).toString();
+          const vehUri = mediaUri('vehicle.glb');
+          this.panel.webview.postMessage({ type: 'vehicleUri', uri: vehUri });
+        } catch (err) { /* ignore */ }
       }
     });
   }

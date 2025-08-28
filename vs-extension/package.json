@@ -1,12 +1,16 @@
 {
   "name": "can-debugger-modular",
-  "displayName": "CAN Debugger (Modular)",
-  "description": "Modüler webview: Speed, RPM, GPS, Fuel/Pressure/FuelRate, Temperature charts + gauges, 3D Vehicle, Live Feed (pretty JSON), status & filters.",
-  "version": "0.9.2",
-  "icon": "images/icon.svg",
+  "displayName": "CAN Debugger: vsCANView (J1939)",
+  "description": "Moduler webview: Speed, RPM, GPS, Fuel/Pressure/FuelRate, Temperature charts + gauges, 3D Vehicle, Live Feed (pretty JSON), status & filters.",
+  "version": "0.9.6",
+  "icon": "images/icon.png",
   "publisher": "mustafa-acar",
   "engines": {
     "vscode": "^1.74.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mustafaacarinfo/vsCANView.git"
   },
   "categories": [
     "Other",
@@ -26,7 +30,7 @@
         {
           "id": "canDebuggerModular",
           "title": "CAN Debugger",
-          "icon": "./images/icon.svg"
+          "icon": "./images/canbus_icon.png"
         }
       ]
     },
@@ -41,12 +45,12 @@
     "commands": [
       {
         "command": "canDebuggerModular.openDashboard",
-        "title": "CAN Debugger (Modular): Open Dashboard"
+        "title": "CAN Debugger: vsCANView (J1939)"
       }
     ],
     "configuration": {
       "type": "object",
-      "title": "CAN Debugger",
+      "title": "CAN Debugger: vsCANView (J1939)",
       "properties": {
         "canDebugger.brokerUrl": {
           "type": "string",
@@ -78,7 +82,8 @@
     "mqtt": "^4.3.7"
   },
   "activationEvents": [
-    "onCommand:canDebuggerModular.openDashboard"
+    "onCommand:canDebuggerModular.openDashboard",
+    "onStartupFinished"
   ],
   "capabilities": {
     "virtualWorkspaces": true,

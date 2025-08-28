@@ -146,14 +146,14 @@ tabs.forEach(t => t.addEventListener('click', () => {
   });
 }));
 
-// Kayıtlı sekmeyi yükle
-const savedTab = localStorage.getItem('can.tab'); 
-if(savedTab && pages[savedTab]) {
-  // Sayfa yüklendikten sonra sekmeye geç (gecikme ile)
-  setTimeout(() => {
-    document.querySelector(`.tab[data-tab="${savedTab}"]`)?.click();
-  }, 100);
-}
+// Her açılışta Overview (dash) sekmesini zorla; önceki kaydedilmiş sekmeyi dikkate almayacağız
+setTimeout(() => {
+  const dash = document.querySelector('.tab[data-tab="dash"]');
+  if (dash) {
+    dash.click();
+    try { localStorage.setItem('can.tab', 'dash'); } catch (e) { /* ignore */ }
+  }
+}, 80);
 
 // Chips persistence
 ['busSel','decodeSel','viewSel','rateSel','idFilter'].forEach(id=>{
@@ -901,6 +901,32 @@ window.addEventListener('message', (ev) => {
         
         feedUpdateScheduled = false;
       });
+    }
+  }
+});
+
+// Webview yüklendiğini uzantıya bildir (acquireVsCodeApi tercih edilir)
+try {
+  const vscode = (typeof acquireVsCodeApi === 'function') ? acquireVsCodeApi() : null;
+  if (vscode && typeof vscode.postMessage === 'function') {
+    vscode.postMessage({ type: 'ready' });
+  } else {
+    window.parent?.postMessage?.({ type: 'ready' }, '*');
+  }
+} catch (e) { /* ignore */ }
+
+// Uzantı tarafından gönderilen showOverview mesajını dinle
+window.addEventListener('message', (ev) => {
+  const msg = ev.data; if(!msg) return;
+  if (msg.type === 'showOverview') {
+    try {
+      const overviewTab = document.querySelector('.tab[data-tab="dash"]');
+      if (overviewTab && !overviewTab.classList.contains('active')) {
+        overviewTab.click();
+  try { localStorage.setItem('can.tab', 'dash'); } catch (e) { /* ignore */ }
+      }
+    } catch (err) {
+      // ignore
     }
   }
 });

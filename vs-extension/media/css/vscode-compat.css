@@ -57,6 +57,18 @@ body {
   color: var(--vscode-text-color);
 }
 
+/* Sayfa içeriği bittiğinde ekstra scroll'u önlemek için düzenlemeler */
+html, body {
+  height: auto; /* İçeriğe göre yükseklik */
+  overflow-y: auto; /* Dikey taşmayı kontrol et */
+}
+
+/* Ekstra boşlukları önlemek için margin ve padding sıfırlandı */
+body {
+  margin: 0;
+  padding: 0;
+}
+
 /* VS Code WSL WebView penceresinde görüntü sorununu çöz */
 .device-canvas {
   width: 100%;

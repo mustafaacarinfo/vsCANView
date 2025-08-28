@@ -1,42 +1,68 @@
 export function ctx2d(canvas){
-  // Canvas görünür değilse veya boyutu 0 ise işlem yapma
+  // Defensive canvas context helper.
+  // Ensures canvas backing store matches layout size, clamps DPR and
+  // schedules a few retry attempts when bounding rect is temporarily 0.
   if (!canvas || !canvas.getBoundingClientRect) return null;
-  
+
+  const scheduleRetryResize = (c, attempts = 6) => {
+    if (c._ctxResizeScheduled) return;
+    c._ctxResizeScheduled = true;
+    const delays = [16, 60, 150, 300, 600, 1000];
+    let i = 0;
+    const tryOnce = () => {
+      i++;
+      try {
+        const rr = c.getBoundingClientRect();
+        if (rr.width > 0 && rr.height > 0) {
+          // apply sizing now
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          c.style.width = rr.width + 'px';
+          c.style.height = rr.height + 'px';
+          c.width = Math.max(1, Math.round(rr.width * dpr));
+          c.height = Math.max(1, Math.round(rr.height * dpr));
+          // trigger a paint by resetting flag
+          c._ctxResizeScheduled = false;
+          return;
+        }
+      } catch (e) { /* ignore transient errors */ }
+      if (i < attempts) {
+        setTimeout(tryOnce, delays[Math.min(i, delays.length-1)]);
+      } else {
+        c._ctxResizeScheduled = false;
+      }
+    };
+    setTimeout(tryOnce, 10);
+  };
+
   const r = canvas.getBoundingClientRect();
+  // If temporarily invisible/zero-size, give a tiny backing store and schedule retries
   if (r.width === 0 || r.height === 0) {
-    // Görünür olmayan canvas için minimum boyut ver
-    canvas.width = 1;
-    canvas.height = 1;
+    try {
+      canvas.style.width = canvas.style.width || '1px';
+      canvas.style.height = canvas.style.height || '1px';
+    } catch(e){}
+    canvas.width = Math.max(1, canvas.width || 1);
+    canvas.height = Math.max(1, canvas.height || 1);
+    // schedule resize attempts to pick up correct layout later
+    scheduleRetryResize(canvas);
     return canvas.getContext('2d');
   }
-  
-  // Performans optimizasyonu: piksel oranını sınırla
-  const dpr = Math.min(window.devicePixelRatio || 1, 2); // Maksimum 2x
-  const W = Math.max(1, Math.round(r.width  * dpr));
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = Math.max(1, Math.round(r.width * dpr));
   const H = Math.max(1, Math.round(r.height * dpr));
-  
-  // Boyut değişikliği varsa güncelle
-  if(canvas.width !== W || canvas.height !== H){ 
-    canvas.width = W; 
-    canvas.height = H; 
-    // Ensure CSS pixel size matches layout size so drawing coordinates align
-    try {
-      canvas.style.width = r.width + 'px';
-      canvas.style.height = r.height + 'px';
-    } catch(e) { /* ignore readonly style errors in some environments */ }
+
+  if (canvas.width !== W || canvas.height !== H) {
+    canvas.width = W;
+    canvas.height = H;
+    try { canvas.style.width = r.width + 'px'; canvas.style.height = r.height + 'px'; } catch(e){}
   }
-  
-  const ctx = canvas.getContext('2d', { 
-    alpha: true, 
-    desynchronized: true,
-    willReadFrequently: false // Performans artışı
-  });
-  
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.imageSmoothingEnabled = true; // Daha iyi görünüm için açık
-  ctx.imageSmoothingQuality = 'high'; // Kaliteli smoothing
-  
-  // roundRect polyfill (Safari eski sürümler için)
+
+  const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+  try { if (typeof ctx.resetTransform === 'function') ctx.resetTransform(); } catch(e){}
+  try { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); } catch(e){}
+  try { ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; } catch(e){}
+
   if(!ctx.roundRect){
     ctx.roundRect = function(x,y,w,h,r){
       const rr = Math.min(r, w/2, h/2) || 0;
@@ -303,21 +329,27 @@ export class LineChart {
     if (r.width === 0 || r.height === 0) return;
     
     // Mevcut canvas boyutu değiştiyse context'i güncelle
-    const needCtxResize = (this.c._lastW !== r.width || this.c._lastH !== r.height);
-    if(needCtxResize || !this.ctx){
-      const newCtx = ctx2d(this.c);
-      if (newCtx) {
-        this.ctx = newCtx;
-        this.c._lastW = r.width; 
-        this.c._lastH = r.height;
-        this._cached = {}; // Cache'i temizle
-      } else {
-        return; // Context oluşturulamadı
+      const needCtxResize = (this.c._lastW !== r.width || this.c._lastH !== r.height);
+      // Also detect backing-store mismatch: canvas.width/height should be approx r.width * dpr
+      const dprCheck = Math.min(window.devicePixelRatio || 1, 2);
+      const expectedW = Math.max(1, Math.round(r.width * dprCheck));
+      const expectedH = Math.max(1, Math.round(r.height * dprCheck));
+      const backingMismatch = (this.c.width !== expectedW || this.c.height !== expectedH);
+      if(needCtxResize || backingMismatch || !this.ctx){
+        const newCtx = ctx2d(this.c);
+        if (newCtx) {
+          this.ctx = newCtx;
+          this.c._lastW = r.width; 
+          this.c._lastH = r.height;
+          this._cached = {}; // Cache'i temizle
+        } else {
+            return; // Context oluşturulamadı
+        }
+
       }
-    }
-    
-    const ctx = this.ctx, W = r.width, H = r.height;
-    ctx.clearRect(0, 0, W, H);
+
+      const ctx = this.ctx, W = r.width, H = r.height;
+  ctx.clearRect(0, 0, W, H);
     
     // Performans için veri noktalarını örnekle (downsample) - LTTB benzeri hafif yöntem
     const visibleData = this.data.filter(p => p.t >= this.xmin && p.t <= this.xmax);

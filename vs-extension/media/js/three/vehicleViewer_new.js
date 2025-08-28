@@ -162,14 +162,27 @@ export class VehicleViewer {
           // Y eksenini hafifçe yukarı kaydır (yer düzleminden yukarıda göster)
           gltf.scene.position.y += size.y * 0.4;
           
-          // Model çok büyükse ölçekle
+          // Modeli hedef bir dünya boyutuna uydur: küçükse büyüt, büyükse küçült.
+          // Böylece model her durumda ekranda okunaklı bir boyutta başlar.
           const maxDimension = Math.max(size.x, size.y, size.z);
-          if (maxDimension > 3) {
-            const scale = 3 / maxDimension;
+          const TARGET_SIZE = 3.0; // dünya biriminde hedef max boyut
+          if (maxDimension > 0) {
+            let scale = TARGET_SIZE / maxDimension;
+            // Çok aşırı değerlerden kaçınmak için sınırla
+            scale = Math.max(0.05, Math.min(scale, 20));
             gltf.scene.scale.setScalar(scale);
-            console.log('Model ölçeklendirildi:', scale);
+            console.log('Model ölçeklendirildi (scale):', scale);
+
+            // Ölçeklendirmeden sonra yeniden kutu/merkez hesapla ve ortala
+            const newBox = new THREE.Box3().setFromObject(gltf.scene);
+            const newCenter = newBox.getCenter(new THREE.Vector3());
+            const newSize = newBox.getSize(new THREE.Vector3());
+            // Reset konum ve merkezle
+            gltf.scene.position.set(0, 0, 0);
+            gltf.scene.position.sub(newCenter);
+            gltf.scene.position.y += newSize.y * 0.4;
           }
-          
+
           // Malzeme kalitesini artır
           gltf.scene.traverse(obj => {
             if (obj.isMesh) {

@@ -194,16 +194,26 @@ let viewer = null;
 
 console.log('Vehicle URI kontrol ediliyor:', vehicleUri);
 
-// Sabit modeli kullan (placeholder değiştirilmemişse)
+// VS Code extension tarafından gönderilecek URI'yi bekle
+// ya da placeholdersa yerel modeli kullan
 if (vehicleUri === '__VEHICLE_URI__') {
-  // Yerel GLB modelinin URI'sini oluştur (göreceli yoldan)
   vehicleUri = './vehicle.glb';
   console.log('Vehicle URI yerel dosyaya ayarlandı:', vehicleUri);
 }
 
-// VehicleViewer'ı başlat
-console.log('VehicleViewer başlatılıyor, URI:', vehicleUri);
-startVehicleViewer(vehicleUri);
+// Three.js kaynaklarının yüklenmesini bekleyip sonra VehicleViewer'ı başlat
+window.threeResourcesLoaded = function() {
+  console.log('Three.js kaynakları hazır, VehicleViewer başlatılıyor...');
+  startVehicleViewer(vehicleUri);
+};
+
+// Eğer yüklenme gerçekleşmediyse, gecikme ile tekrar dene
+setTimeout(() => {
+  if (!viewer) {
+    console.log('VehicleViewer hala başlatılmamış, tekrar deneniyor...');
+    startVehicleViewer(vehicleUri);
+  }
+}, 3000);
 
 function startVehicleViewer(uri) {
   // Modeli yükleme işlemi başlıyor - notice'ı tamamen gizle

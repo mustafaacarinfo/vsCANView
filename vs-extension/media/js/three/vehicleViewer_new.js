@@ -1,52 +1,81 @@
-// Three.js ve GLTFLoader için import
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/GLTFLoader';
+// Three.js ve GLTFLoader tanımları
+let THREE;
+let GLTFLoader;
 
-// Yedek yükleme mekanizması - import map çalışmazsa kullanılacak
-async function loadThreeStack(){
-  if(THREE && GLTFLoader) return;
+// VSCode WebView uyumlu yükleme mekanizması
+async function loadThreeStack() {
+  if (THREE && GLTFLoader) return;
   
-  console.log('[viewer] Import map başarısız oldu, alternatif yöntem deneniyor...');
+  console.log('[viewer] Three.js ve GLTFLoader yükleniyor...');
   
-  // Three.js'yi manuel olarak yükle
+  // 1. Script yükleme yardımcı fonksiyonu
+  const loadScript = (src) => {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.type = 'text/javascript';
+      script.onload = () => {
+        console.log(`[viewer] Script yüklendi: ${src}`);
+        resolve();
+      };
+      script.onerror = (err) => {
+        console.error(`[viewer] Script yükleme hatası: ${src}`, err);
+        reject(new Error(`Script yüklenemedi: ${src}`));
+      };
+      document.head.appendChild(script);
+    });
+  };
+  
+  // 2. Inline script yükleme yardımcı fonksiyonu
+  const executeInlineScript = (code) => {
+    return new Promise((resolve) => {
+      try {
+        const script = document.createElement('script');
+        script.textContent = code;
+        document.head.appendChild(script);
+        console.log('[viewer] Inline script çalıştırıldı');
+        resolve();
+      } catch (e) {
+        console.error('[viewer] Inline script hatası:', e);
+        resolve(); // Hata olsa da devam et
+      }
+    });
+  };
+
   try {
-    const threeModule = await import('./vendor/three.module.js');
-    Object.assign(THREE, threeModule);
-    console.log('[viewer] THREE manuel olarak yüklendi');
-  } catch(e){
-    console.error('[viewer] three.module import hatası:', e.message);
+    // Three.js'yi doğrudan yükle
+    await loadScript('./js/three/vendor/three.module.js');
+    
+    // Global THREE nesnesini elde et
+    await executeInlineScript(`
+      window.THREE = THREE || {};
+      if (typeof three !== 'undefined') {
+        Object.assign(window.THREE, three);
+      }
+    `);
+    
+    // GLTFLoader'ı yükle
+    await loadScript('./js/three/vendor/GLTFLoader.js');
+    
+    // Global değişkenleri ayarla
+    THREE = window.THREE;
+    GLTFLoader = window.GLTFLoader;
+    
+    if (!THREE) {
+      throw new Error('Three.js yüklenemedi');
+    }
+    
+    if (!GLTFLoader) {
+      // Minimal yükleyici dene
+      await loadScript('./js/three/vendor/gltfMinimalLoader.js');
+      GLTFLoader = window.GLTFMinimalLoader;
+      console.warn('[viewer] Minimal loader kullanılıyor (sınırlı özellik)');
+    }
+    
+    console.log('[viewer] Three.js ve GLTFLoader başarıyla yüklendi');
+  } catch (e) {
+    console.error('[viewer] Three.js yükleme hatası:', e.message);
     throw e;
-  }
-  
-  // GLTFLoader'ı manuel olarak yükle
-  try {
-    console.time('[viewer] GLTFLoader import');
-    const absPath = new URL('./vendor/GLTFLoader.js', import.meta.url).href;
-    console.log('[viewer] GLTFLoader yolu:', absPath);
-    const gltfMod = await import(absPath);
-    console.timeEnd('[viewer] GLTFLoader import');
-    
-    if (!gltfMod || !gltfMod.GLTFLoader) {
-      throw new Error('GLTFLoader export bulunamadı');
-    }
-    
-    // Global değişkeni güncelle
-    window.GLTFLoader = gltfMod.GLTFLoader;
-    console.log('[viewer] GLTFLoader manuel olarak yüklendi');
-  } catch(fullErr){
-    console.warn('[viewer] GLTFLoader import hatası:', fullErr && fullErr.message);
-    
-    // Minimal yükleyici dene
-    try {
-      const absPathMinimal = new URL('./vendor/gltfMinimalLoader.js', import.meta.url).href;
-      console.log('[viewer] MinimalLoader yolu:', absPathMinimal);
-      const { GLTFMinimalLoader } = await import(absPathMinimal + '?v=3');
-      window.GLTFLoader = GLTFMinimalLoader;
-      console.warn('[viewer] Minimal loader devrede (sınırlı özellik)');
-    } catch(minErr){
-      console.error('[viewer] Minimal loader da import edilemedi:', minErr && minErr.stack);
-      throw minErr;
-    }
   }
 }
 

@@ -203,14 +203,16 @@ class Dashboard {
     // VS Code WebView için güncellenmiş CSP ayarları:
     // - Chart.js ve diğer CDN'ler için eklenen kurallar
     // - ESM modül yüklemelerini desteklemek için daha geniş izinler
+    // - wasm-unsafe-eval eklendi - WASM desteği için
     const csp = `
-      default-src 'none'; 
-      img-src ${wv.cspSource} data: blob: ${tileHost}; 
-      style-src ${wv.cspSource} 'unsafe-inline'; 
-      font-src ${wv.cspSource} data:;
-      script-src ${wv.cspSource} 'unsafe-inline' 'unsafe-eval' ${cdnJsHost}; 
-      connect-src ${wv.cspSource} blob: ${cdnJsHost}; 
-      worker-src blob:;
+      default-src 'self' ${wv.cspSource};
+      img-src ${wv.cspSource} https: data: blob:;
+      style-src ${wv.cspSource} 'unsafe-inline' https:;
+      font-src ${wv.cspSource} data: https:;
+      script-src ${wv.cspSource} 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https:;
+      connect-src ${wv.cspSource} blob: https: data:;
+      worker-src ${wv.cspSource} blob: https:;
+      frame-src ${wv.cspSource} https:;
     `.replace(/\s+/g, ' ').trim();
     
     html = html.replace('<head>', `<head><meta http-equiv="Content-Security-Policy" content="${csp}">`);
@@ -229,7 +231,10 @@ class Dashboard {
     const appPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'js', 'app.js');
     const tempAppPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'js', 'app_temp.js');
     let appJs = fs.readFileSync(appPath.fsPath, 'utf8');
-    appJs = appJs.replace('__VEHICLE_URI__', vehUri);
+    // VS Code Webview için güvenli URI'yi oluştur
+    const secureVehUri = wv.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', 'vehicle.glb')).toString();
+    // HTML URI değiştirilmez; yerine, postMessage yöntemini kullanarak URI'yi gönderir
+    appJs = appJs.replace('__VEHICLE_URI__', secureVehUri);
     fs.writeFileSync(tempAppPath.fsPath, appJs);
     
     const appTempUri = mediaUri('js', 'app_temp.js');

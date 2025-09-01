@@ -64,7 +64,7 @@ export class EngineGauges {
         thresholds: { cold: 150, normal: 400, hot: 650 }, showNeedle:true, showValue:false
       });
     }
-  }
+  } /* ref po 2*/
   
   setValues({ oilPressure, batteryVoltage, intakeManifold, coolantTemp, oilTemp, exhaustTemp }) {
     if (oilPressure != null) this.oilPressure.setValue(oilPressure);

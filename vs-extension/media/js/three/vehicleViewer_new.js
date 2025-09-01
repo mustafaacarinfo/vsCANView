@@ -1,82 +1,40 @@
-// Three.js ve GLTFLoader tanımları
-let THREE;
-let GLTFLoader;
-
-// VSCode WebView uyumlu yükleme mekanizması
-async function loadThreeStack() {
-  if (THREE && GLTFLoader) return;
+// VS Code WebView ortamında Three.js ve GLTFLoader kullanımı için yardımcı fonksiyon
+async function waitForGlobalThreeResources(maxRetries = 20, intervalMs = 300) {
+  console.log('[viewer] Global Three.js kaynaklarını bekliyor...');
   
-  console.log('[viewer] Three.js ve GLTFLoader yükleniyor...');
-  
-  // 1. Script yükleme yardımcı fonksiyonu
-  const loadScript = (src) => {
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = src;
-      script.type = 'text/javascript';
-      script.onload = () => {
-        console.log(`[viewer] Script yüklendi: ${src}`);
-        resolve();
-      };
-      script.onerror = (err) => {
-        console.error(`[viewer] Script yükleme hatası: ${src}`, err);
-        reject(new Error(`Script yüklenemedi: ${src}`));
-      };
-      document.head.appendChild(script);
-    });
-  };
-  
-  // 2. Inline script yükleme yardımcı fonksiyonu
-  const executeInlineScript = (code) => {
-    return new Promise((resolve) => {
-      try {
-        const script = document.createElement('script');
-        script.textContent = code;
-        document.head.appendChild(script);
-        console.log('[viewer] Inline script çalıştırıldı');
-        resolve();
-      } catch (e) {
-        console.error('[viewer] Inline script hatası:', e);
-        resolve(); // Hata olsa da devam et
+  return new Promise((resolve, reject) => {
+    let retries = 0;
+    
+    const checkResources = () => {
+      // Global THREE ve GLTFLoader var mı kontrol et
+      if (window.THREE && (window.GLTFLoader || window.THREE.GLTFLoader)) {
+        console.log('[viewer] Global Three.js kaynakları bulundu');
+        resolve({
+          THREE: window.THREE,
+          GLTFLoader: window.GLTFLoader || window.THREE.GLTFLoader
+        });
+        return;
       }
-    });
-  };
-
-  try {
-    // Three.js'yi doğrudan yükle
-    await loadScript('./js/three/vendor/three.module.js');
-    
-    // Global THREE nesnesini elde et
-    await executeInlineScript(`
-      window.THREE = THREE || {};
-      if (typeof three !== 'undefined') {
-        Object.assign(window.THREE, three);
+      
+      // Maksimum deneme sayısını aştıysak hata ver
+      retries++;
+      if (retries >= maxRetries) {
+        if (window.modelLoadingErrors && window.modelLoadingErrors.length > 0) {
+          reject(new Error('Three.js kaynakları yüklenemedi: ' + window.modelLoadingErrors.join(', ')));
+        } else {
+          reject(new Error('Three.js kaynakları 10 saniye içinde yüklenemedi'));
+        }
+        return;
       }
-    `);
+      
+      // Tekrar dene
+      console.log(`[viewer] Three.js kaynaklarını bekleniyor... (${retries}/${maxRetries})`);
+      setTimeout(checkResources, intervalMs);
+    };
     
-    // GLTFLoader'ı yükle
-    await loadScript('./js/three/vendor/GLTFLoader.js');
-    
-    // Global değişkenleri ayarla
-    THREE = window.THREE;
-    GLTFLoader = window.GLTFLoader;
-    
-    if (!THREE) {
-      throw new Error('Three.js yüklenemedi');
-    }
-    
-    if (!GLTFLoader) {
-      // Minimal yükleyici dene
-      await loadScript('./js/three/vendor/gltfMinimalLoader.js');
-      GLTFLoader = window.GLTFMinimalLoader;
-      console.warn('[viewer] Minimal loader kullanılıyor (sınırlı özellik)');
-    }
-    
-    console.log('[viewer] Three.js ve GLTFLoader başarıyla yüklendi');
-  } catch (e) {
-    console.error('[viewer] Three.js yükleme hatası:', e.message);
-    throw e;
-  }
+    // İlk kontrolü başlat
+    checkResources();
+  });
 }
 
 export class VehicleViewer {
@@ -110,15 +68,22 @@ export class VehicleViewer {
         }
       });
       
-      // Import map ile yükleme başarısızsa yedek mekanizmayı dene
-      if (!THREE || !GLTFLoader) {
-        console.warn('[viewer] THREE veya GLTFLoader tanımlı değil, yedek yükleme deneniyor');
-        await loadThreeStack();
+      console.log('Three.js & GLTFLoader kaynaklarını bekleniyor...');
+      try {
+        // Global THREE ve GLTFLoader nesneleri için bekle
+        const { THREE, GLTFLoader } = await waitForGlobalThreeResources();
+        
+        // Global değişkenleri sınıf içinde kullan
+        this.THREE = THREE;
+        this.GLTFLoader = GLTFLoader;
+        
+        console.log('Three.js & GLTFLoader başarıyla alındı');
+        console.log('Canvas element:', this.canvas);
+      } catch (err) {
+        console.error('Three.js kaynakları yüklenemedi:', err);
+        this.notice('Three.js kaynakları yüklenemedi: ' + err.message);
+        throw err;
       }
-      
-      console.log('Three.js & GLTFLoader yüklendi');
-      this.THREE = THREE;
-      console.log('Canvas element:', this.canvas);
   // Renderer oluşturulurken antialias ve shadow gibi pahalı opsiyonları
   // cihaz kapasitesine göre sonradan açıp kapatabileceğimiz bir yapı kuruyoruz.
   // Renderer kalitesi artırıldı - antialiasing açıldı (daha keskin görüntü)
@@ -189,7 +154,7 @@ export class VehicleViewer {
       
       // GLTF Loader ile modeli yükle
       console.log('GLTF Loader oluşturuluyor...');
-  const loader = new GLTFLoader();
+      const loader = new this.GLTFLoader();
       console.log('Model yükleme başlıyor, URI:', this.modelUri);
       
       loader.load(

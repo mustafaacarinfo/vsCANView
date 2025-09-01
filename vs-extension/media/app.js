@@ -197,50 +197,95 @@ console.log('Vehicle URI kontrol ediliyor:', vehicleUri);
 // VS Code extension tarafından gönderilecek URI'yi bekle
 // ya da placeholdersa yerel modeli kullan
 if (vehicleUri === '__VEHICLE_URI__') {
-  vehicleUri = './vehicle.glb';
-  console.log('Vehicle URI yerel dosyaya ayarlandı:', vehicleUri);
+  // VS Code WebView entegrasyonunda, URI'yi extension.js'den almalıyız
+  console.log('Vehicle URI bekleniyor, VS Code Extension\'dan talep edilecek...');
+  
+  // VS Code API'sini kontrol et
+  if (typeof acquireVsCodeApi === 'function') {
+    const vscode = acquireVsCodeApi();
+    // Vehicle URI'yi talep et
+    vscode.postMessage({ type: 'getVehicleUri' });
+    console.log('Vehicle URI talep edildi');
+  } else {
+    console.warn('VS Code API bulunamadı, yerel URI kullanılacak');
+    vehicleUri = './vehicle.glb';
+  }
+} else {
+  console.log('Vehicle URI hazır:', vehicleUri);
 }
 
 // Three.js kaynaklarının yüklenmesini bekleyip sonra VehicleViewer'ı başlat
 window.threeResourcesLoaded = function() {
   console.log('Three.js kaynakları hazır, VehicleViewer başlatılıyor...');
-  startVehicleViewer(vehicleUri);
+  
+  // URI hazır mı kontrol et
+  if (vehicleUri && vehicleUri !== '__VEHICLE_URI__') {
+    startVehicleViewer(vehicleUri);
+  } else {
+    console.log('Vehicle URI henüz hazır değil, VS Code Extension\'dan bekleniyor...');
+  }
 };
 
 // Eğer yüklenme gerçekleşmediyse, gecikme ile tekrar dene
 setTimeout(() => {
   if (!viewer) {
     console.log('VehicleViewer hala başlatılmamış, tekrar deneniyor...');
-    startVehicleViewer(vehicleUri);
+    if (vehicleUri && vehicleUri !== '__VEHICLE_URI__') {
+      startVehicleViewer(vehicleUri);
+    } else {
+      console.log('Vehicle URI hala hazır değil');
+    }
   }
 }, 3000);
 
 function startVehicleViewer(uri) {
-  // Modeli yükleme işlemi başlıyor - notice'ı tamamen gizle
-  const noticeEl = document.getElementById('vehicleNotice');
-  if (noticeEl) {
-    noticeEl.textContent = '';
-    noticeEl.style.display = 'none'; // Tamamen gizle
+  if (!uri) {
+    console.error('Vehicle URI tanımlanmamış!');
+    return;
   }
   
-  viewer = new VehicleViewer(
-    document.getElementById('vehicleCanvas'), 
-    document.getElementById('vehicleNotice'), 
-    uri
-  );
-  console.log('VehicleViewer oluşturuluyor...');
-  viewer.init().then(() => {
-    // Başarıyla yüklenince notice elementinin stil özelliklerini temizle
-    if (noticeEl) noticeEl.style.display = 'none';
-    console.log('VehicleViewer başarıyla başlatıldı');
-  }).catch(err => {
-    // Sadece hata durumunda göster
+  console.log('VehicleViewer başlatılıyor, URI:', uri);
+  
+  // Modeli yükleme işlemi başlıyor
+  const noticeEl = document.getElementById('vehicleNotice');
+  if (noticeEl) {
+    noticeEl.textContent = 'Model yükleniyor...';
+    noticeEl.style.display = 'block';
+  }
+  
+  // Halihazırda bir viewer varsa önce temizle
+  if (viewer) {
+    console.log('Önceki viewer temizleniyor');
+    viewer = null;
+  }
+  
+  try {
+    viewer = new VehicleViewer(
+      document.getElementById('vehicleCanvas'), 
+      document.getElementById('vehicleNotice'), 
+      uri
+    );
+    console.log('VehicleViewer oluşturuldu');
+    
+    viewer.init().then(() => {
+      // Başarıyla yüklenince notice elementini gizle
+      if (noticeEl) noticeEl.style.display = 'none';
+      console.log('VehicleViewer başarıyla başlatıldı');
+    }).catch(err => {
+      // Sadece hata durumunda göster
+      if (noticeEl) {
+        noticeEl.textContent = 'Hata: ' + err.message;
+        noticeEl.style.display = 'block';
+      }
+      console.error('VehicleViewer başlatma hatası:', err);
+    });
+  } catch (err) {
+    console.error('VehicleViewer oluşturulurken hata:', err);
     if (noticeEl) {
       noticeEl.textContent = 'Hata: ' + err.message;
       noticeEl.style.display = 'block';
     }
-    console.error('VehicleViewer başlatma hatası:', err);
-  });
+  }
 }
 
 // Feed
@@ -315,40 +360,31 @@ document.getElementById('exportFeed').addEventListener('click', ()=>{
   const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='can-feed.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url), 1000);
 });
 
-// MQTT bridge - vehicleUri mesajını da yakalayacak şekilde güncellenmiş
+// MQTT bridge - vehicleUri ve threejs mesajlarını da yakalayacak şekilde güncellenmiş
 window.addEventListener('message', (ev) => {
   const msg = ev.data; if(!msg) return;
   
   // Vehicle URI mesajı kontrolü ekle
   if (msg.type === 'vehicleUri' && msg.uri) {
     console.log('MQTT Listener\'da Vehicle URI alındı:', msg.uri);
-    if (!viewer) {
-      // Yazıyı gizle
-      const noticeEl = document.getElementById('vehicleNotice');
-      if (noticeEl) {
-        noticeEl.textContent = '';
-        noticeEl.style.display = 'none';
-      }
-      
-      viewer = new VehicleViewer(
-        document.getElementById('vehicleCanvas'), 
-        document.getElementById('vehicleNotice'), 
-        msg.uri
-      );
-      console.log('VehicleViewer oluşturuluyor...');
-      viewer.init().then(() => {
-        console.log('VehicleViewer başlatıldı');
-        // Burada da gizle
-        if (noticeEl) noticeEl.style.display = 'none';
-      }).catch(err => {
-        console.error('VehicleViewer başlatma hatası:', err);
-        // Sadece hata durumunda göster
-        if (noticeEl) {
-          noticeEl.textContent = 'Hata: ' + err.message;
-          noticeEl.style.display = 'block';
-        }
-      });
+    vehicleUri = msg.uri; // URI'yi güncelle
+    
+    // Eğer Three.js kaynakları yüklendiyse ve viewer oluşturulmadıysa
+    // ya da yeniden oluşturulması gerekiyorsa
+    if (window.THREE && window.GLTFLoader) {
+      console.log('Three.js kaynakları hazır, VehicleViewer hemen başlatılıyor');
+      startVehicleViewer(msg.uri);
+    } else {
+      console.log('Three.js kaynakları henüz hazır değil, URI kaydedildi');
     }
+    return;
+  }
+  
+  // Three.js URI'leri için mesaj kontrolü ekle
+  if (msg.type === 'threeUris') {
+    console.log('Three.js URI bilgileri alındı:', msg.threeUri, msg.loaderUri);
+    window.threeJsUri = msg.threeUri;
+    window.loaderJsUri = msg.loaderUri;
     return;
   }
   

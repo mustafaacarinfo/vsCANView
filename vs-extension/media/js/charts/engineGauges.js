@@ -51,7 +51,7 @@ export class EngineGauges {
       this.coolantTemp.zeroNoFill = true;      // 0 değerde segment çizmeyi engelle
       this.coolantTemp._tempZeroNoFill = true; // İlk gerçek veri (0 dışı) gelince otomatik kapanacak
       this.coolantTemp.draw();
-    }
+    } 
     if(opts.oilTempCanvas){
       this.oilTemp = new ArcGauge(opts.oilTempCanvas, {
         min: 0, max: 150, value: 0, unit: ' °C', label: 'Oil Temp',

@@ -73,9 +73,13 @@ export class ArcGauge {
     }
   // Eğer geçici noFillAfterClear aktif ise ve gelen değer 0'dan farklı ise kapat
     if(this._tempZeroNoFill){
-      // İlk gerçek veri fark etmeksizin (0 veya başka) normal moda dön
-      this.zeroNoFill = false;
-      this._tempZeroNoFill = false;
+      // 0 değerinde (ör: başlangıç / clear sonrası) segmentleri kapalı tut
+      // ancak 0 dışı ilk gerçek veri gelince normal moda dön.
+      const keepNoFill = (this.min < 0 && v === 0);
+      if(!keepNoFill){
+        this.zeroNoFill = false;
+        this._tempZeroNoFill = false;
+      }
     }
     this.animation.current = (this.value==null)? v : this.value;
     this.animation.target = v;

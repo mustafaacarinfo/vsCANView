@@ -376,7 +376,11 @@ function clearAllCharts() {
     // Başlangıçta veri yok modunda: değer 0 (üst sınır) fakat segment boyanmasın
     engineGauges.coolantTemp.zeroNoFill = true;
     engineGauges.coolantTemp._tempZeroNoFill = true;
-    engineGauges.coolantTemp.setValue(0); // zeroNoFill aktifken segment çizilmeyecek
+  // Animasyonsuz direkt çizim için value ve animation senkron ayarla
+  engineGauges.coolantTemp.value = 0;
+  engineGauges.coolantTemp.animation.current = 0;
+  engineGauges.coolantTemp.animation.target = 0;
+  engineGauges.coolantTemp.draw(0); // Segment çizilmemeli
   }
   if(oilPressureValEl) oilPressureValEl.textContent = '0 kPa';
   if(batteryVoltageValEl) batteryVoltageValEl.textContent = '0 V';

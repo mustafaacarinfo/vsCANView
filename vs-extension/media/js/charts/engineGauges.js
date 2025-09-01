@@ -41,10 +41,10 @@ export class EngineGauges {
     // Opsiyonel ek sıcaklık göstergeleri (ayrı panelde oluşturulan canvaslar)
     if(opts.coolantCanvas){
       this.coolantTemp = new ArcGauge(opts.coolantCanvas, {
-  // Normal sıcaklık ölçeği: 0 .. 120
-  min: 0, max: 120, value: 0, unit: ' °C', label: 'Coolant Temp',
-  // Sıcaklık threshold'ları
-  thresholds: { cold: 40, normal: 80, hot: 100 },
+  // Eksi değerler için ölçek: -300 .. 0
+  min: -300, max: 0, value: 0, unit: ' °C', label: 'Coolant Temp',
+  // Eksi değerler için threshold'lar
+  thresholds: { cold: -250, normal: -100, hot: -50 },
   showNeedle:true, showValue:false
       });
     }

@@ -6,7 +6,7 @@ export class ArcGauge {
     const {
       min = 0,
       max = 100,
-      value = 0,
+      value = null,
       unit = '%',
       thresholds = null,     // { cold:40, normal:90, hot:100 }
       colorStops = null,      // [{ color:'#3b82f6', upTo:40 }, ...]
@@ -28,6 +28,11 @@ export class ArcGauge {
   this.segments = this._buildSegments({ thresholds, colorStops, bands, min, max });
     this.animation = { current: value, target: value, step: 0, timestamp: 0 };
     window.addEventListener('resize', () => this.ctx = ctx2d(this.c));
+    
+    // Initial draw with the constructor value
+    if (this.c) {
+      setTimeout(() => this.draw(), 0);
+    }
   }
 
   _buildSegments({ thresholds, colorStops, bands, min, max }) {
@@ -239,10 +244,8 @@ export class ArcGauge {
           if (seg.end >= valueLimit) break;
         }
       }
-    }
 
-    // İbre / pointer
-    if(!empty){
+      // İbre / pointer - sadece veri varken çiz
       let pointerColor = '#60a5fa';
       for (const seg of this.segments) { if (displayValue <= seg.end) { pointerColor = seg.color; break; } }
       if(this.neutralBelowOrEq != null && displayValue <= this.neutralBelowOrEq){ pointerColor = '#3b82f6'; }

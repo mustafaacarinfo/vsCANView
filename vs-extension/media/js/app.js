@@ -373,8 +373,8 @@ function clearAllCharts() {
       exhaustTemp: 0
   });
   if(engineGauges.coolantTemp){
-    // Önce değeri set et, sonra geçici boş gösterim flaglerini ata (ilk gerçek veriyle kalkacak)
-    engineGauges.coolantTemp.setValue(0);
+    // Başlangıçta veri olmadığını göstermek için null değeri set et
+    engineGauges.coolantTemp.setValue(null);
     engineGauges.coolantTemp.zeroNoFill = true;      // segment boyama yok
     engineGauges.coolantTemp._tempZeroNoFill = true; // ilk sonraki setValue çağrısında kapanacak (0 dahil)
     engineGauges.coolantTemp.draw();

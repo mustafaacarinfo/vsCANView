@@ -108,7 +108,7 @@ export class TemperatureGauges {
                 this.engineTempGauge = new ArcGaugeModule.ArcGauge(this.engineTempCanvas, {
                     min: 0,
                     max: 120,
-                    value: 0,
+                    value: null,
                     unit: '°C',
                     label: 'Engine Temp'
                 });
@@ -120,7 +120,7 @@ export class TemperatureGauges {
                 this.coolantTempGauge = new ArcGaugeModule.ArcGauge(this.coolantTempCanvas, {
                     min: 0,
                     max: 100,
-                    value: 0,
+                    value: null,
                     unit: '°C',
                     label: 'Coolant Temp'
                 });
@@ -236,9 +236,15 @@ export class TemperatureGauges {
                 return;
             }
             
-            this.engineTempGauge.setValue(numValue);
+            // Engine temp için 0 veya çok küçük değerleri "veri yok" olarak kabul et
+            if (numValue <= 0.1) {
+                this.engineTempGauge.setValue(null);
+            } else {
+                this.engineTempGauge.setValue(numValue);
+            }
+            
             this.draw(); // Redraw after value change
-            console.log('✅ Engine temp set successfully to:', numValue);
+            console.log('✅ Engine temp set successfully to:', numValue <= 0.1 ? 'null (no data)' : numValue);
         } catch (error) {
             console.error('❌ Error setting engine temp:', error);
         }
@@ -270,9 +276,15 @@ export class TemperatureGauges {
                 return;
             }
             
-            this.coolantTempGauge.setValue(numValue);
+            // Coolant temp için 0 veya çok küçük değerleri "veri yok" olarak kabul et
+            if (numValue <= 0.1) {
+                this.coolantTempGauge.setValue(null);
+            } else {
+                this.coolantTempGauge.setValue(numValue);
+            }
+            
             this.draw(); // Redraw after value change
-            console.log('✅ Coolant temp set successfully to:', numValue);
+            console.log('✅ Coolant temp set successfully to:', numValue <= 0.1 ? 'null (no data)' : numValue);
         } catch (error) {
             console.error('❌ Error setting coolant temp:', error);
         }

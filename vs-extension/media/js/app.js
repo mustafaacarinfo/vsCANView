@@ -1063,25 +1063,116 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// Resize - performans optimizasyonlu
+// Gelişmiş resize handler - canvas boyutlandırma ve grid layout sorunlarını çözer
 let resizeTimeout = null;
+let layoutChangeTimeout = null;
+
+function forceCanvasResize() {
+  // Tüm canvas elementlerini bul ve boyutlarını yeniden hesapla
+  const canvases = document.querySelectorAll('canvas');
+  canvases.forEach(canvas => {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      // Canvas'ın CSS boyutlarını zorla güncelle
+      canvas.style.width = '100%';
+      canvas.style.height = 'auto';
+      // Kısa bir süre sonra DPR ve backing store'u yeniden hesapla
+      setTimeout(() => {
+        try {
+          ctx2d(canvas);
+        } catch(e) { /* ignore */ }
+      }, 10);
+    }
+  });
+}
+
+function forceChartRedraw() {
+  const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
+  if (activeTab === 'dash' || !activeTab) {
+    // Aşamalı yeniden çizim
+    requestAnimationFrame(() => {
+      // İlk aşama: hızlı çizim
+      try { speed.draw(); } catch(e) {}
+      try { rpm.draw(); } catch(e) {}
+      try { navMap.draw(); } catch(e) {}
+      try { pressure.draw(); } catch(e) {}
+      try { fuelRate.draw(); } catch(e) {}
+      try { fuelGauge.draw(); } catch(e) {}
+      try { engineGauges.draw(); } catch(e) {}
+      
+      // İkinci aşama: layout stabilleştikten sonra tekrar çiz
+      setTimeout(() => {
+        try { speed.draw(); } catch(e) {}
+        try { fuelRate.draw(); } catch(e) {}
+        try { fuelGauge.draw(); } catch(e) {}
+      }, 50);
+      
+      // Üçüncü aşama: son kontrol
+      setTimeout(() => {
+        try { speed.draw(); } catch(e) {}
+        try { fuelRate.draw(); } catch(e) {}
+      }, 150);
+    });
+  } else if (activeTab === 'signals' && multiSignalChart) {
+    requestAnimationFrame(() => {
+      try { multiSignalChart.draw(); } catch(e) {}
+    });
+  }
+}
+
 window.addEventListener('resize', () => { 
-  // Resize işlemlerini optimize et - çoklu çağrıları engelle
+  // Hızlı tepki için canvas boyutlarını anında güncelle
+  forceCanvasResize();
+  
+  // Debounced resize işlemi
   if (resizeTimeout) clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(() => {
-    const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
-    if (activeTab === 'dash' || !activeTab) {
-      // Görünür sayfadaki canvas elementleri için yeniden boyutlandırma tetikle
-      speed.draw(); 
-      rpm.draw(); 
-      navMap.draw(); 
-      pressure.draw(); 
-      fuelRate.draw(); 
-      fuelGauge.draw(); 
-      engineGauges.draw();
-    } else if (activeTab === 'signals' && multiSignalChart) {
-      multiSignalChart.draw();
-    }
+    forceCanvasResize();
+    forceChartRedraw();
     resizeTimeout = null;
-  }, 250); // 250ms gecikme ile yeniden boyutlandırma olaylarını birleştir
+  }, 150);
+  
+  // Layout değişikliği için ek kontrol
+  if (layoutChangeTimeout) clearTimeout(layoutChangeTimeout);
+  layoutChangeTimeout = setTimeout(() => {
+    forceCanvasResize();
+    forceChartRedraw();
+    layoutChangeTimeout = null;
+  }, 300);
 });
+
+// Fullscreen değişikliklerini özel olarak ele al
+['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(event => {
+  document.addEventListener(event, () => {
+    setTimeout(() => {
+      forceCanvasResize();
+      forceChartRedraw();
+    }, 100);
+    
+    setTimeout(() => {
+      forceCanvasResize();
+      forceChartRedraw();
+    }, 500);
+  });
+});
+
+// Ekstra güvenlik: window focus ve visibility değişikliklerinde de kontrol et
+window.addEventListener('focus', () => {
+  setTimeout(() => {
+    forceCanvasResize();
+    forceChartRedraw();
+  }, 100);
+});
+
+// Developer tools açılıp kapandığında da kontrol et
+let lastWindowHeight = window.innerHeight;
+let lastWindowWidth = window.innerWidth;
+
+setInterval(() => {
+  if (window.innerHeight !== lastWindowHeight || window.innerWidth !== lastWindowWidth) {
+    lastWindowHeight = window.innerHeight;
+    lastWindowWidth = window.innerWidth;
+    forceCanvasResize();
+    forceChartRedraw();
+  }
+}, 500);

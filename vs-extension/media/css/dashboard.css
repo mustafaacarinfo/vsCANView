@@ -2,7 +2,7 @@
        --blue:#60a5fa; --green:#34d399; --amber:#f59e0b; --red:#ef4444; --violet:#a78bfa; 
        --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", 
                Roboto, "Helvetica Neue", Arial, sans-serif; }
-  *{box-sizing:border-box} html,body{height:100%} body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 var(--font-sans);overflow-y:scroll}
+  *{box-sizing:border-box} html,body{height:100%;overflow-x:hidden} body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 var(--font-sans);overflow-y:scroll}
        .nav{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;background:#0a0e13;border-bottom:1px solid var(--border);padding:8px 12px}
        .tabs{display:flex;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:#0a0e13}
        .tab{padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:#0f1520;color:var(--muted);cursor:pointer;user-select:none}
@@ -60,9 +60,12 @@
                                                  gap: 12px;
                                                    max-width: 1600px;
                                                      margin: 0 auto;
-                                                       /* Üst sıra oranları (device / speed / gauge) */
+                                                       /* Responsive grid for viewport width */
                                                        grid-template-columns: 0.9fr 1.5fr 1.1fr;
                                                          grid-auto-rows: minmax(120px, auto);
+                                                         /* Ensure minimum panel sizes */
+                                                         min-height: 100vh;
+                                                         transition: grid-template-columns 0.3s ease;
                                grid-template-areas:
                                  "kpis kpis kpis"
                                  "device speed gauge"
@@ -70,19 +73,17 @@
                                  "pressure engine gps"
                                  "fuelrate fuelrate fuelrate"; /* Fuel rate için yeni tam genişlik satır */
                                                                                }
-                                                                               .panel {
-                                                                                 background: var(--panel);
-                                                                                   border: 1px solid var(--border);
-                                                                                     border-radius: 10px;
-                                                                                       min-height: 120px;
-                                                                                         display: flex;
-                                                                                           flex-direction: column;
-                                                                                             overflow: hidden;
-                                                                                               box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-                                                                                                 transition: transform 0.2s ease-in-out;
-                                                                                                 }
-
-                                                                                                 .panel:hover {
+                                                                                                 .panel {
+                                                                                                 background: var(--panel);
+                                                                                                   border: 1px solid var(--border);
+                                                                                                     border-radius: 10px;
+                                                                                                       min-height: 240px;
+                                                                                                         display: flex;
+                                                                                                           flex-direction: column;
+                                                                                                             overflow: hidden;
+                                                                                                               box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+                                                                                                                 transition: transform 0.2s ease-in-out;
+                                                                                                                 }                                                                                                 .panel:hover {
                                                                                                    transform: translateY(-1px);
                                                                                                      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
                                                                                                      }
@@ -92,19 +93,25 @@
                                                                                                          flex: 1;
                                                                                                            display: flex;
                                                                                                              flex-direction: column;
+                                                                                                             overflow: hidden;
+                                                                                                             justify-content: center;
+                                                                                                             align-items: stretch;
+                                                                                                             /* Resize stability */
+                                                                                                             position: relative;
+                                                                                                             min-height: 0;
                                                                                                              }
 
-                                                                                                             .kpis{grid-area:kpis} 
-                                                                                                            .device{grid-area:device;min-height:260px;display:flex;flex-direction:column}
-                                                                                                             .speed{grid-area:speed} 
-                                                                                                             .gauge{grid-area:gauge}
-                                                                                                             .rpm{grid-area:rpm}
-                                                                                                             .engine{grid-area:engine;min-height:240px;display:flex;flex-direction:column}
-                                                                                                             .gps{grid-area:gps;min-height:440px} 
-                                                                                                             .fuelrate{grid-area:fuelrate}
-                                                                                                             /* temps panel removed */
-                                                                                                            .nav-wrapper{position:relative;width:100%;height:100%;min-height:240px;display:flex;align-items:center;justify-content:center;padding:4px}
-                                                                                                            #navMap{width:100%;height:100%;display:block;object-fit:cover;border-radius:8px;background:#111a24;min-height:320px}
+                                                                                                             .kpis{grid-area:kpis;min-height:120px} 
+                                                                                                            .device{grid-area:device;min-height:320px;display:flex;flex-direction:column}
+                                                                                                             .speed{grid-area:speed;min-height:320px} 
+                                                                                                             .gauge{grid-area:gauge;min-height:320px}
+                                                                                                             .rpm{grid-area:rpm;min-height:280px}
+                                                                                                             .engine{grid-area:engine;min-height:320px;display:flex;flex-direction:column}
+                                                                                                             .gps{grid-area:gps;min-height:480px} 
+                                                                                                             .pressure{grid-area:pressure;min-height:280px}
+                                                                                                             .fuelrate{grid-area:fuelrate;min-height:280px}
+                                                                                                            .nav-wrapper{position:relative;width:100%;height:100%;min-height:320px;display:flex;align-items:center;justify-content:center;padding:4px}
+                                                                                                            #navMap{width:100%;height:100%;display:block;object-fit:cover;border-radius:8px;background:#111a24;min-height:400px}
                                                                                                              .pressure{grid-area:pressure} 
                                                                                                              .fuelrate{grid-area:fuelrate}
                                                                                                              /* tempGauges removed: merged into temps */
@@ -125,7 +132,21 @@
                                                                                                              .kpi[data-trend="down"]{background:linear-gradient(135deg,#4b5563 10%,#0d1622 90%);} 
                                                                                                              .kpi[data-trend]{border-color:rgba(255,255,255,.08)}
 
-                                                                                                             canvas{display:block;width:100%;height:260px;border-radius:8px} .small{height:240px}
+                                                                                                             canvas{
+                                                                                                               display:block;
+                                                                                                               width:100% !important;
+                                                                                                               height:260px;
+                                                                                                               border-radius:8px;
+                                                                                                               min-height:200px;
+                                                                                                               object-fit:contain;
+                                                                                                               box-sizing: border-box;
+                                                                                                               /* Resize sırasında stable tutmak için */
+                                                                                                               transition: none;
+                                                                                                             } 
+                                                                                                             .small{
+                                                                                                               height:240px !important;
+                                                                                                               min-height:180px;
+                                                                                                             }
                                                                                                              .legend{display:flex;gap:10px;color:#9fb0c4;font-size:12px;margin-bottom:6px}
                                                                                                              .legend .it{display:flex;gap:6px;align-items:center;border:1px solid var(--border);background:#0f1520;border-radius:999px;padding:2px 8px}
                                                                                                              .sw{width:10px;height:10px;border-radius:2px}
@@ -210,49 +231,151 @@
                                                                                                                                                                                                       .device-canvas{width:100%;height:100%;display:block;object-fit:contain;aspect-ratio:4/3}
 
                                                                                                                                                                                                       /* Fuel panel adaptif ve taşma engelli yapı */
-                                                                                                                                                                                                      .panel.gauge{overflow:hidden}
-                                                                                                                                                                                                      .fuel-flex{display:flex;gap:18px;height:100%;align-items:center;justify-content:space-between;padding:4px 2px}
-                                                                                                                                                                                                      .fuel-gauge{flex:0 0 clamp(180px,32%,260px);display:flex;align-items:center;justify-content:center;max-height:100%}
-                                                                                                                                                                                                      .fuel-gauge canvas{width:100%;height:auto;aspect-ratio:1/1;max-height:280px;object-fit:contain}
-                                                                                                                                                                                                      .fuel-rate{flex:1;min-width:200px;display:flex;align-items:stretch}
-                                                                                                                                                                                                      .fuel-rate canvas{width:100%;height:100%;min-height:190px;max-height:100%;object-fit:contain}
+                                                                                                                                                                                                      .panel.gauge{overflow:hidden;position:relative}
+                                                                                                                                                                                                      .fuel-flex{
+                                                                                                                                                                                                        display:flex;
+                                                                                                                                                                                                        gap:18px;
+                                                                                                                                                                                                        height:100%;
+                                                                                                                                                                                                        align-items:center;
+                                                                                                                                                                                                        justify-content:space-between;
+                                                                                                                                                                                                        padding:4px 2px;
+                                                                                                                                                                                                        /* Resize stability */
+                                                                                                                                                                                                        flex-wrap: nowrap;
+                                                                                                                                                                                                        min-height: 200px;
+                                                                                                                                                                                                      }
+                                                                                                                                                                                                      .fuel-gauge{
+                                                                                                                                                                                                        flex:0 0 clamp(180px,32%,260px);
+                                                                                                                                                                                                        display:flex;
+                                                                                                                                                                                                        align-items:center;
+                                                                                                                                                                                                        justify-content:center;
+                                                                                                                                                                                                        max-height:100%;
+                                                                                                                                                                                                        /* Prevent shifting during resize */
+                                                                                                                                                                                                        position: relative;
+                                                                                                                                                                                                      }
+                                                                                                                                                                                                      .fuel-gauge canvas{
+                                                                                                                                                                                                        width:100% !important;
+                                                                                                                                                                                                        height:auto !important;
+                                                                                                                                                                                                        aspect-ratio:1/1;
+                                                                                                                                                                                                        max-height:280px;
+                                                                                                                                                                                                        object-fit:contain;
+                                                                                                                                                                                                      }
+                                                                                                                                                                                                      .fuel-rate{
+                                                                                                                                                                                                        flex:1;
+                                                                                                                                                                                                        min-width:200px;
+                                                                                                                                                                                                        display:flex;
+                                                                                                                                                                                                        align-items:stretch;
+                                                                                                                                                                                                        /* Prevent content shift */
+                                                                                                                                                                                                        position: relative;
+                                                                                                                                                                                                      }
+                                                                                                                                                                                                      .fuel-rate canvas{
+                                                                                                                                                                                                        width:100% !important;
+                                                                                                                                                                                                        height:100% !important;
+                                                                                                                                                                                                        min-height:190px;
+                                                                                                                                                                                                        max-height:100%;
+                                                                                                                                                                                                        object-fit:contain;
+                                                                                                                                                                                                      }
 
-                                                                                                                                                                                                      /* Panel yükseklik harmonisi */
-                                                                                                                                                                                                      .panel.device .pb, .panel.speed .pb, .panel.gauge .pb{padding:14px}
+                                                                                                                                                                                                      /* Panel yükseklik harmonisi ve resize stability */
+                                                                                                                                                                                                      .panel.device .pb, .panel.speed .pb, .panel.gauge .pb{
+                                                                                                                                                                                                        padding:14px;
+                                                                                                                                                                                                        position: relative;
+                                                                                                                                                                                                        overflow: hidden;
+                                                                                                                                                                                                      }
                                                                                                                                                                                                       /* Üst satır panelleri yüksekliği */
-                                                                                                                                                                                                      .panel.device, .panel.speed, .panel.gauge {min-height:clamp(240px,32vh,320px); max-height:340px;}
-                                                                                                                                                                                                      .panel.speed canvas, .panel.gauge canvas{height:100%;min-height:210px;max-height:100%;}
+                                                                                                                                                                                                      .panel.device, .panel.speed, .panel.gauge {
+                                                                                                                                                                                                        min-height:clamp(240px,32vh,320px); 
+                                                                                                                                                                                                        max-height:340px;
+                                                                                                                                                                                                        /* Resize sırasında stable tutmak için */
+                                                                                                                                                                                                        transition: none;
+                                                                                                                                                                                                      }
+                                                                                                                                                                                                      .panel.speed canvas, .panel.gauge canvas{
+                                                                                                                                                                                                        height:100% !important;
+                                                                                                                                                                                                        min-height:210px;
+                                                                                                                                                                                                        max-height:100%;
+                                                                                                                                                                                                        /* Extra stability during resize */
+                                                                                                                                                                                                        position: relative;
+                                                                                                                                                                                                        z-index: 1;
+                                                                                                                                                                                                      }
                                                                                                                                                                                                       /* Sekme geçişinde yüksekliğin sıçramasını engellemek için sabit iç yükseklik referansları */
-                                                                                                                                                                                                      .panel.device .pb, .panel.speed .pb, .panel.gauge .pb{display:flex;flex-direction:column;justify-content:stretch}
-                                                                                                                                                                                                      .panel.speed .pb > canvas, .panel.gauge .pb > canvas{flex:1 1 auto}
+                                                                                                                                                                                                      .panel.device .pb, .panel.speed .pb, .panel.gauge .pb{
+                                                                                                                                                                                                        display:flex;
+                                                                                                                                                                                                        flex-direction:column;
+                                                                                                                                                                                                        justify-content:stretch;
+                                                                                                                                                                                                        min-height: 0;
+                                                                                                                                                                                                      }
+                                                                                                                                                                                                      .panel.speed .pb > canvas, .panel.gauge .pb > canvas{
+                                                                                                                                                                                                        flex:1 1 auto;
+                                                                                                                                                                                                        min-height: 200px;
+                                                                                                                                                                                                      }
 
-                                                                                                                                                                                                      @media (max-width:1480px){
-                                                                                                                                                                                                        .grid{grid-template-columns:1.1fr 1.4fr 1.1fr}
+                                                                                                      /* Viewport'a göre responsive ayarlar */
+                                                                                                                                                                                                      @media (min-width: 1600px) {
+                                                                                                                                                                                                        .grid {
+                                                                                                                                                                                                          grid-template-columns: 0.9fr 1.5fr 1.1fr;
+                                                                                                                                                                                                          max-width: 1800px;
+                                                                                                                                                                                                        }
+                                                                                                                                                                                                      }
+
+                                                                                                                                                                                                      @media (min-width: 1480px) and (max-width: 1599px) {
+                                                                                                                                                                                                        .grid {
+                                                                                                                                                                                                          grid-template-columns: 1fr 1.3fr 1fr;
+                                                                                                                                                                                                        }
+                                                                                                                                                                                                      }
+
+                                                                                                                                                                                                      @media (max-width:1479px){
+                                                                                                                                                                                                        .grid{
+                                                                                                                                                                                                          grid-template-columns: 1fr 1.2fr 1fr;
+                                                                                                                                                                                                          grid-template-areas:
+                                                                                                                                                                                                            "kpis kpis kpis"
+                                                                                                                                                                                                            "device speed gauge"
+                                                                                                                                                                                                            "rpm engine gps"
+                                                                                                                                                                                                            "pressure engine gps"
+                                                                                                                                                                                                            "fuelrate fuelrate fuelrate";
+                                                                                                                                                                                                        }
+                                                                                                                                                                                                        .panel.device, .panel.speed, .panel.gauge {min-height:clamp(240px,30vh,320px)}
                                                                                                                                                                                                       }
                                                                                                                                                                                                       @media (max-width:1320px){
-                                                                                                                                                                                                         .grid{grid-template-columns:1fr 1fr;grid-template-areas:
-                                                                                                                                                                                                           "kpis kpis"
-                                                                                                                                                                                                           "device gauge"
-                                                                                                                                                                                                           "speed speed"
-                                                                                                                                                                                                           "rpm engine"
-                                                                                                                                                                                                           "pressure engine"
-                                                                                                                                                                                                           "gps gps";}
+                                                                                                                                                                                                         .grid{
+                                                                                                                                                                                                           grid-template-columns:1fr 1fr;
+                                                                                                                                                                                                           grid-template-areas:
+                                                                                                                                                                                                             "kpis kpis"
+                                                                                                                                                                                                             "device speed"
+                                                                                                                                                                                                             "gauge rpm"
+                                                                                                                                                                                                             "engine engine"
+                                                                                                                                                                                                             "pressure fuelrate"
+                                                                                                                                                                                                             "gps gps";
+                                                                                                                                                                                                         }
                                                                                                                                                                                                         .panel.device, .panel.speed, .panel.gauge {min-height:clamp(240px,34vh,360px)}
                                                                                                                                                                                                         .fuel-gauge{flex:0 0 clamp(200px,32%,280px)}
                                                                                                                                                                                                       }
 
                                                                                                                                                                                                       @media (max-width:1000px){
-                                                                                                                                                                                                        .grid{grid-template-columns:1fr;grid-template-areas:
-                                                                                                                                                                                                          "kpis"
-                                                                                                                                                                                                          "device"
-                                                                                                                                                                                                          "speed"
-                                                                                                                                                                                                          "gauge"
-                                                                                                                                                                                                          "rpm"
-                                                                                                                                                                                                          "engine"
-                                                                                                                                                                                                          "pressure"
-                                                                                                                                                                                                          "fuelrate"
-                                                                                                                                                                                                          "gps";}
-                                                                                                                                                                                                        .fuel-flex{flex-direction:column}
-                                                                                                                                                                                                        .fuel-gauge{flex:0 0 auto;width:100%;max-width:none}
+                                                                                                                                                                                                        .grid{
+                                                                                                                                                                                                          grid-template-columns:1fr;
+                                                                                                                                                                                                          grid-template-areas:
+                                                                                                                                                                                                            "kpis"
+                                                                                                                                                                                                            "device"
+                                                                                                                                                                                                            "speed"
+                                                                                                                                                                                                            "gauge"
+                                                                                                                                                                                                            "rpm"
+                                                                                                                                                                                                            "engine"
+                                                                                                                                                                                                            "pressure"
+                                                                                                                                                                                                            "fuelrate"
+                                                                                                                                                                                                            "gps";
+                                                                                                                                                                                                        }
+                                                                                                                                                                                                        .fuel-flex{flex-direction:column;gap:16px}
+                                                                                                                                                                                                        .fuel-gauge{flex:0 0 auto;width:100%;max-width:none;display:flex;justify-content:center}
+                                                                                                                                                                                                        .fuel-rate{flex:1;min-height:200px}
                                                                                                                                                                                                         .panel.device, .panel.speed, .panel.gauge {min-height:300px}
+                                                                                                                                                                                                      }
+
+                                                                                                                                                                                                      @media (max-width:768px){
+                                                                                                                                                                                                        .kpi-wrap{grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:8px}
+                                                                                                                                                                                                        .kpi .val{font-size:24px}
+                                                                                                                                                                                                        .panel{min-height:280px !important}
+                                                                                                                                                                                                        .grid{padding:8px;gap:8px}
+                                                                                                                                                                                                        .eng-grid{grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px}
+                                                                                                                                                                                                        .eng-card{min-height:180px;padding:8px 8px 35px}
+                                                                                                                                                                                                        .eng-card canvas{max-width:120px;max-height:120px}
+                                                                                                                                                                                                        .eng-val{font-size:14px}
                                                                                                                                                                                                       }

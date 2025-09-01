@@ -314,9 +314,12 @@ function onLayoutChangeForceResize() {
     try { fuelRate.draw(); } catch(e){}
     try { fuelGauge.draw(); } catch(e){}
     try { engineGauges.draw(); } catch(e){}
+    // Repeat attempts to handle layout race conditions (CSS transitions / webview resize races)
+    setTimeout(()=>{ try { speed.draw(); rpm.draw(); pressure.draw(); fuelRate.draw(); engineGauges.draw(); } catch(e){} }, 60);
+    setTimeout(()=>{ try { speed.draw(); rpm.draw(); pressure.draw(); fuelRate.draw(); engineGauges.draw(); } catch(e){} }, 180);
     // area / signal charts
     try { if(areaChart) areaChart.draw(); } catch(e){}
-    try { if(multiSignalChart) { multiSignalChart.initChart(); multiSignalChart.draw(); } } catch(e){}
+    try { if(multiSignalChart) { /* only force init when signals tab visible */ if(document.getElementById('page-signals')?.classList.contains('active')) { multiSignalChart.initChart(); multiSignalChart.draw(); } } } catch(e){}
   } catch (err) { console.warn('onLayoutChangeForceResize failed', err); }
 }
 

@@ -373,8 +373,8 @@ function clearAllCharts() {
       exhaustTemp: 0
   });
   if(engineGauges.coolantTemp){
-    // Başlangıçta minimum konumda mavi ibre göster, ama segment boyama yok
-    engineGauges.coolantTemp.setValue(-300);
+    // Başlangıçta orta konumda mavi ibre göster (-225 derece), ama segment boyama yok
+    engineGauges.coolantTemp.setValue(-225);
     engineGauges.coolantTemp.zeroNoFill = true;      // segment boyama yok
     engineGauges.coolantTemp._tempZeroNoFill = true; // ilk sonraki setValue çağrısında kapanacak (0 dahil)
     engineGauges.coolantTemp.draw();

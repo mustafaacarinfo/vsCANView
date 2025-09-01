@@ -259,16 +259,20 @@ export class ArcGauge {
     this._drawNeedle(ctx, cx, cy, R, start, end, fracVal, pointerColor);
 
   if (this.showValue) {
-      // Değer metni
-  ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.font = '28px "Inter","Segoe UI",system-ui,sans-serif'; ctx.textBaseline = 'bottom';
-      const valueY = cy + Math.min(44, H * 0.30); // bir miktar daha aşağı
-  const labelVal = empty ? '' : (Math.round(displayValue) + this.unit);
-  ctx.fillText(labelVal, cx, valueY);
+      // Değer metni - zeroNoFill aktifken gizle
+      if(!(this.zeroNoFill && displayValue != null)){
+        ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.font = '28px "Inter","Segoe UI",system-ui,sans-serif'; ctx.textBaseline = 'bottom';
+        const valueY = cy + Math.min(44, H * 0.30); // bir miktar daha aşağı
+        const labelVal = empty ? '' : (Math.round(displayValue) + this.unit);
+        ctx.fillText(labelVal, cx, valueY);
+      }
       if (this.label) {
   ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '13px "Inter","Segoe UI",system-ui,sans-serif'; ctx.textBaseline = 'top';
+        const valueY = cy + Math.min(44, H * 0.30);
         ctx.fillText(this.label, cx, valueY + 8);
       }
       if (this.icon) {
+        const valueY = cy + Math.min(44, H * 0.30);
         const iconSize = 24; ctx.drawImage(this.icon, cx - iconSize / 2, valueY + 20, iconSize, iconSize);
       }
     }

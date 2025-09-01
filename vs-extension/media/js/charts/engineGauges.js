@@ -42,7 +42,7 @@ export class EngineGauges {
     if(opts.coolantCanvas){
       this.coolantTemp = new ArcGauge(opts.coolantCanvas, {
   // Sadece negatif değerleri gösterecek form: -300 .. 0
-  min: -300, max: 0, value: -300, unit: ' °C', label: 'Coolant Temp',
+  min: -300, max: 0, value: -225, unit: ' °C', label: 'Coolant Temp',
   // Tek renk (oil temp tarzı) – segmentler mavi tonunda ilerlesin
   colorStops: [ { upTo: 0, color:'#3b82f6' } ],
   showNeedle:true, showValue:false

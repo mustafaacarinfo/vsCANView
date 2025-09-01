@@ -43,10 +43,14 @@ export class EngineGauges {
       this.coolantTemp = new ArcGauge(opts.coolantCanvas, {
   // Eksi değerler için ölçek: -300 .. 0
   min: -300, max: 0, value: 0, unit: ' °C', label: 'Coolant Temp',
-  // Eksi değerler için threshold'lar
-  thresholds: { cold: -250, normal: -100, hot: -50 },
+  // Tek renk - veri geldiğinde mavi olacak
+  colorStops: [ { upTo: 0, color:'#3b82f6' } ],
   showNeedle:true, showValue:false
       });
+      // Başlangıçta segment boyama yok, sadece ibre 0'ı (ölçeğin sonu) göstersin
+      this.coolantTemp.zeroNoFill = true;      // 0 değerde segment çizmeyi engelle
+      this.coolantTemp._tempZeroNoFill = true; // İlk gerçek veri (0 dışı) gelince otomatik kapanacak
+      this.coolantTemp.draw();
     }
     if(opts.oilTempCanvas){
       this.oilTemp = new ArcGauge(opts.oilTempCanvas, {

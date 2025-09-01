@@ -373,11 +373,10 @@ function clearAllCharts() {
       exhaustTemp: 0
   });
   if(engineGauges.coolantTemp){
-    // Başlangıçta tipik soğutma suyu sıcaklığı (-273°C civarı) konumunda mavi ibre göster, ama segment boyama yok
-    engineGauges.coolantTemp.setValue(-273);
-    engineGauges.coolantTemp.zeroNoFill = true;      // segment boyama yok
-    engineGauges.coolantTemp._tempZeroNoFill = true; // ilk sonraki setValue çağrısında kapanacak (0 dahil)
-    engineGauges.coolantTemp.draw();
+    // Başlangıçta veri yok modunda: değer 0 (üst sınır) fakat segment boyanmasın
+    engineGauges.coolantTemp.zeroNoFill = true;
+    engineGauges.coolantTemp._tempZeroNoFill = true;
+    engineGauges.coolantTemp.setValue(0); // zeroNoFill aktifken segment çizilmeyecek
   }
   if(oilPressureValEl) oilPressureValEl.textContent = '0 kPa';
   if(batteryVoltageValEl) batteryVoltageValEl.textContent = '0 V';

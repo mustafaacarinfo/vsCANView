@@ -239,9 +239,9 @@ class Dashboard {
     
     const appTempUri = mediaUri('js', 'app_temp.js');
     
-    // WebView'a uyumlu Three.js ve GLTFLoader URI'lerini oluştur
-    const threeJsUri = mediaUri('js', 'three', 'vendor', 'three.module.js');
-    const gltfLoaderUri = mediaUri('js', 'three', 'vendor', 'GLTFLoader.js');
+  // Module sürümlerini doğrudan kullan
+  const threeJsUri = mediaUri('js', 'three', 'vendor', 'three.module.js');
+  const gltfLoaderUri = mediaUri('js', 'three', 'vendor', 'GLTFLoader.js');
     
     // URI yer tutucuları değiştir
     html = html
@@ -250,8 +250,8 @@ class Dashboard {
       .replace('__VS_COMPAT_CSS__', vsCompatCssUri)
       .replace('__FONTS_CSS__', fontsCssUri)
       .replace('__APP_JS__', appTempUri)
-      .replace('__THREE_JS_URI__', threeJsUri)
-      .replace('__GLTF_LOADER_URI__', gltfLoaderUri);
+  .replace('__THREE_JS_URI__', threeJsUri)
+  .replace('__GLTF_LOADER_URI__', gltfLoaderUri);
     
     this.panel.webview.html = html;
   }

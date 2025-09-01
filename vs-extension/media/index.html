@@ -8,138 +8,44 @@
   <link rel="stylesheet" href="__FONTS_CSS__" />
   <link rel="stylesheet" href="__CSS_URI__" />
   <link rel="stylesheet" href="__SIGNALS_CSS_URI__" />
-  <!-- Chart.js için modül tanımlaması -->
+  <!-- Import map (yorum yok, geçerli JSON) -->
   <script type="importmap">
     {
       "imports": {
         "chart.js": "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/+esm",
-        "chartjs-adapter-date-fns": "https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/+esm"
+        "chartjs-adapter-date-fns": "https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/+esm",
+        "three": "__THREE_JS_URI__"
       }
     }
   </script>
-  <!-- Three.js ve GLTFLoader için VS Code WebView URI'leri ile yükleme -->
   <script>
-    // Global değişkenler
-    window.THREE = window.THREE || {};
-    window.modelLoadingErrors = [];
-    
-    // VS Code WebView ile entegrasyon için hazırlık
-    function initVSCode() {
-      // VS Code API'sine erişim
-      let vscode = null;
-      try {
-        if (typeof acquireVsCodeApi === 'function') {
-          vscode = acquireVsCodeApi();
-          console.log('VS Code API başarıyla alındı');
-        } else {
-          console.warn('VS Code API bulunamadı, tarayıcı ortamında olabilirsiniz');
-        }
-      } catch (err) {
-        console.error('VS Code API erişimi başarısız:', err);
-      }
-      return vscode;
+    window.modelLoadingErrors = window.modelLoadingErrors || [];
+    function initVSCode(){
+      let v=null;try{ if(typeof acquireVsCodeApi==='function'){ v=acquireVsCodeApi(); console.log('VS Code API alındı'); } }catch(e){ console.warn('VS Code API erişimi başarısız:', e);} return v;
     }
-    
-    // Three.js ve GLTFLoader'ı yükle
-    function loadThreeJsResources() {
-      return new Promise((resolve, reject) => {
-        const threeJsUri = '__THREE_JS_URI__';
-        const gltfLoaderUri = '__GLTF_LOADER_URI__';
-        
-        console.log('VS Code WebView URI ile Three.js kaynakları yükleniyor...');
-        console.log('Three.js URI:', threeJsUri);
-        console.log('GLTFLoader URI:', gltfLoaderUri);
-        
-        // Yükleme durumu için global değişkenler
-        window.threeJsLoaded = false;
-        window.gltfLoaderLoaded = false;
-        
-        // Three.js ve GLTFLoader'ı inline script olarak ekle
-        const inlineScript = document.createElement('script');
-        inlineScript.textContent = `
-          // Three.js yükleme
-          const threeScript = document.createElement('script');
-          threeScript.onload = function() {
-            console.log('Three.js başarıyla yüklendi!');
-            window.THREE = THREE || {};
-            window.threeJsLoaded = true;
-            checkResourcesLoaded();
-          };
-          threeScript.onerror = function(err) {
-            console.error('Three.js yüklenemedi:', err);
-            window.modelLoadingErrors.push('Three.js yüklenemedi');
-          };
-          threeScript.src = '${threeJsUri}';
-          document.head.appendChild(threeScript);
-          
-          // GLTFLoader yükleme
-          const loaderScript = document.createElement('script');
-          loaderScript.onload = function() {
-            console.log('GLTFLoader başarıyla yüklendi!');
-            window.GLTFLoader = GLTFLoader;
-            window.gltfLoaderLoaded = true;
-            checkResourcesLoaded();
-          };
-          loaderScript.onerror = function(err) {
-            console.error('GLTFLoader yüklenemedi:', err);
-            window.modelLoadingErrors.push('GLTFLoader yüklenemedi');
-          };
-          loaderScript.src = '${gltfLoaderUri}';
-          document.head.appendChild(loaderScript);
-          
-          // Her iki kaynak da hazır olduğunda bildir
-          function checkResourcesLoaded() {
-            if (window.threeJsLoaded && window.gltfLoaderLoaded) {
-              console.log('Tüm Three.js kaynakları başarıyla yüklendi!');
-              if (window.threeResourcesLoaded) {
-                window.threeResourcesLoaded();
-              }
-            }
-          }
-        `;
-        document.head.appendChild(inlineScript);
-        
-        // Yükleme durumunu kontrol et
-        const checkInterval = setInterval(() => {
-          if (window.threeJsLoaded && window.gltfLoaderLoaded) {
-            clearInterval(checkInterval);
-            resolve();
-          }
-        }, 100);
-        
-        // Zaman aşımı
-        setTimeout(() => {
-          if (!window.threeJsLoaded || !window.gltfLoaderLoaded) {
-            clearInterval(checkInterval);
-            reject(new Error('Three.js kaynakları zaman aşımına uğradı'));
-          }
-        }, 10000);
-      });
-    }
-    
-    // Sayfa yüklendiğinde başlat
-    window.addEventListener('load', () => {
-      // VS Code ile iletişim kur
-      const vscode = initVSCode();
-      if (vscode) {
-        // Hazır olduğumuzu bildir
-        vscode.postMessage({ type: 'ready' });
-        
-        // Vehicle URI talep et
-        setTimeout(() => {
-          vscode.postMessage({ type: 'getVehicleUri' });
-        }, 500);
-      }
-      
-      // Three.js kaynaklarını yükle
-      loadThreeJsResources()
-        .then(() => {
-          console.log('Three.js kaynakları başarıyla yüklendi, VehicleViewer hazır');
-        })
-        .catch(err => {
-          console.error('Three.js kaynakları yüklenemedi:', err);
-        });
+    window.addEventListener('load',()=>{
+      const vscode=initVSCode();
+      if(vscode){ vscode.postMessage({type:'ready'}); setTimeout(()=>vscode.postMessage({type:'getVehicleUri'}),400); }
     });
+  </script>
+  <script type="module">
+    // Three & GLTFLoader modül bazlı yükleme
+    try {
+      const THREE = await import('three');
+      window.THREE = THREE; // tüm export'lar
+      console.log('[modules] three.module yüklendi');
+      const loaderMod = await import('__GLTF_LOADER_URI__');
+      const GLTFLoader = loaderMod.GLTFLoader || loaderMod.default;
+      window.GLTFLoader = GLTFLoader;
+      console.log('[modules] GLTFLoader modülü yüklendi');
+      if(window.threeResourcesLoaded) window.threeResourcesLoaded();
+    } catch(e){
+      console.error('[modules] Three/GLTFLoader yükleme hatası:', e);
+      window.modelLoadingErrors.push(e.message||'modül yükleme hatası');
+    }
+    // Chart.js adapter preload (opsiyonel)
+    import('chart.js').then(m=>{ window.Chart = m.default || m; });
+    import('chartjs-adapter-date-fns').catch(()=>{});
   </script>
 </head>
 <body>

@@ -2,6 +2,75 @@
 async function waitForGlobalThreeResources(maxRetries = 20, intervalMs = 300) {
   console.log('[viewer] Global Three.js kaynaklarını bekliyor...');
   
+  // Eğer THREE ve GLTFLoader varsa hemen dön
+  if (window.THREE && (window.GLTFLoader || window.THREE.GLTFLoader)) {
+    console.log('[viewer] Global Three.js kaynakları zaten yüklü');
+    return {
+      THREE: window.THREE,
+      GLTFLoader: window.GLTFLoader || window.THREE.GLTFLoader
+    };
+  }
+  
+  // Fallback - Eğer THREE ve GLTFLoader yoksa yüklemeyi dene
+  async function loadThreeJsDirectly() {
+    console.log('[viewer] Three.js kaynaklarını doğrudan yükleme deneniyor...');
+    
+    // Three.js'yi doğrudan yükle
+    return new Promise((resolve, reject) => {
+      try {
+        // Three.js için script elementini oluştur
+        const threeScript = document.createElement('script');
+        threeScript.type = 'text/javascript';
+        threeScript.onload = () => {
+          console.log('[viewer] Three.js doğrudan yüklendi');
+          
+          // GLTFLoader için script elementini oluştur
+          const loaderScript = document.createElement('script');
+          loaderScript.type = 'text/javascript';
+          loaderScript.onload = () => {
+            console.log('[viewer] GLTFLoader doğrudan yüklendi');
+            
+            // Global değişkenleri ayarla
+            window.THREE = window.THREE || THREE;
+            window.GLTFLoader = window.GLTFLoader || GLTFLoader;
+            
+            resolve({
+              THREE: window.THREE,
+              GLTFLoader: window.GLTFLoader
+            });
+          };
+          loaderScript.onerror = (err) => {
+            console.error('[viewer] GLTFLoader yükleme hatası:', err);
+            reject(new Error('GLTFLoader yüklenemedi'));
+          };
+          
+          // VS Code URI'si varsa kullan, yoksa varsayılan yolu kullan
+          if (window.loaderJsUri) {
+            loaderScript.src = window.loaderJsUri;
+          } else {
+            loaderScript.src = './js/three/vendor/GLTFLoader.js';
+          }
+          document.head.appendChild(loaderScript);
+        };
+        threeScript.onerror = (err) => {
+          console.error('[viewer] Three.js yükleme hatası:', err);
+          reject(new Error('Three.js yüklenemedi'));
+        };
+        
+        // VS Code URI'si varsa kullan, yoksa varsayılan yolu kullan
+        if (window.threeJsUri) {
+          threeScript.src = window.threeJsUri;
+        } else {
+          threeScript.src = './js/three/vendor/three.min.js';
+        }
+        document.head.appendChild(threeScript);
+      } catch (err) {
+        console.error('[viewer] Script yükleme hatası:', err);
+        reject(err);
+      }
+    });
+  }
+  
   return new Promise((resolve, reject) => {
     let retries = 0;
     
@@ -16,14 +85,23 @@ async function waitForGlobalThreeResources(maxRetries = 20, intervalMs = 300) {
         return;
       }
       
-      // Maksimum deneme sayısını aştıysak hata ver
+      // Maksimum deneme sayısını aştıysak fallback dene
       retries++;
       if (retries >= maxRetries) {
-        if (window.modelLoadingErrors && window.modelLoadingErrors.length > 0) {
-          reject(new Error('Three.js kaynakları yüklenemedi: ' + window.modelLoadingErrors.join(', ')));
-        } else {
-          reject(new Error('Three.js kaynakları 10 saniye içinde yüklenemedi'));
-        }
+        console.warn(`[viewer] Three.js kaynakları ${maxRetries} denemede yüklenemedi, doğrudan yükleme deneniyor`);
+        
+        // Doğrudan yükleme dene
+        loadThreeJsDirectly()
+          .then(resolve)
+          .catch((err) => {
+            console.error('[viewer] Doğrudan yükleme başarısız:', err);
+            
+            if (window.modelLoadingErrors && window.modelLoadingErrors.length > 0) {
+              reject(new Error('Three.js kaynakları yüklenemedi: ' + window.modelLoadingErrors.join(', ')));
+            } else {
+              reject(new Error('Three.js kaynakları yüklenemedi'));
+            }
+          });
         return;
       }
       

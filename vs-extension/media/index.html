@@ -8,12 +8,14 @@
   <link rel="stylesheet" href="__FONTS_CSS__" />
   <link rel="stylesheet" href="__CSS_URI__" />
   <link rel="stylesheet" href="__SIGNALS_CSS_URI__" />
-  <!-- Chart.js için modül tanımlaması -->
+  <!-- Chart.js ve Three.js için modül tanımlaması -->
   <script type="importmap">
     {
       "imports": {
         "chart.js": "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/+esm",
-        "chartjs-adapter-date-fns": "https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/+esm"
+        "chartjs-adapter-date-fns": "https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/+esm",
+        "three": "./js/three/vendor/three.module.js",
+        "three/GLTFLoader": "./js/three/vendor/GLTFLoader.js"
       }
     }
   </script>

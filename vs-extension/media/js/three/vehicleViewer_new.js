@@ -1,37 +1,48 @@
-// Statik importlar bazı VSCode webview ortamlarında specifier hatası ürettiği için
-// dinamik import fallback uygulanıyor.
-let THREE, GLTFLoader;
+// Three.js ve GLTFLoader için import
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/GLTFLoader';
+
+// Yedek yükleme mekanizması - import map çalışmazsa kullanılacak
 async function loadThreeStack(){
   if(THREE && GLTFLoader) return;
+  
+  console.log('[viewer] Import map başarısız oldu, alternatif yöntem deneniyor...');
+  
+  // Three.js'yi manuel olarak yükle
   try {
-  const m = await import('./vendor/three.module.js');
-    THREE = m;
+    const threeModule = await import('./vendor/three.module.js');
+    Object.assign(THREE, threeModule);
+    console.log('[viewer] THREE manuel olarak yüklendi');
   } catch(e){
-    console.error('[viewer] three.module dyn import fail:', e.message);
+    console.error('[viewer] three.module import hatası:', e.message);
     throw e;
   }
+  
+  // GLTFLoader'ı manuel olarak yükle
   try {
     console.time('[viewer] GLTFLoader import');
-    // Mutlak yol sağlam import için
-  const absPath = new URL('./vendor/GLTFLoader.js', import.meta.url).href;
-  console.log('[viewer] GLTFLoader yolu:', absPath);
-  const gltfMod = await import(absPath);
+    const absPath = new URL('./vendor/GLTFLoader.js', import.meta.url).href;
+    console.log('[viewer] GLTFLoader yolu:', absPath);
+    const gltfMod = await import(absPath);
     console.timeEnd('[viewer] GLTFLoader import');
-    if (!gltfMod || !gltfMod.GLTFLoader) throw new Error('GLTFLoader export missing');
-    GLTFLoader = gltfMod.GLTFLoader;
-    console.log('[viewer] Full GLTFLoader yüklendi (tam özellik)');
+    
+    if (!gltfMod || !gltfMod.GLTFLoader) {
+      throw new Error('GLTFLoader export bulunamadı');
+    }
+    
+    // Global değişkeni güncelle
+    window.GLTFLoader = gltfMod.GLTFLoader;
+    console.log('[viewer] GLTFLoader manuel olarak yüklendi');
   } catch(fullErr){
-    console.warn('[viewer] Full GLTFLoader import HATA:', fullErr && fullErr.message);
-    // Kullanıcıya kısa not
+    console.warn('[viewer] GLTFLoader import hatası:', fullErr && fullErr.message);
+    
+    // Minimal yükleyici dene
     try {
       const absPathMinimal = new URL('./vendor/gltfMinimalLoader.js', import.meta.url).href;
       console.log('[viewer] MinimalLoader yolu:', absPathMinimal);
       const { GLTFMinimalLoader } = await import(absPathMinimal + '?v=3');
-      GLTFLoader = GLTFMinimalLoader;
-      console.warn('[viewer] Minimal loader devrede (sınırlı özellik).');
-      if (this && typeof this.notice === 'function') {
-        this.notice('Basit modeller (tam olmayan kalite)');
-      }
+      window.GLTFLoader = GLTFMinimalLoader;
+      console.warn('[viewer] Minimal loader devrede (sınırlı özellik)');
     } catch(minErr){
       console.error('[viewer] Minimal loader da import edilemedi:', minErr && minErr.stack);
       throw minErr;
@@ -60,9 +71,24 @@ export class VehicleViewer {
       console.log('VehicleViewer initializing...');
       console.log('Model URI:', this.modelUri);
       
-  await loadThreeStack();
-  console.log('Three.js & GLTFLoader dinamik yüklendi');
-  this.THREE = THREE;
+      // Eklenti tarafından gönderilen URI'leri dinle
+      window.addEventListener('message', (event) => {
+        const message = event.data;
+        if (message && message.type === 'threeUris') {
+          console.log('Three.js URI bilgileri alındı:', message);
+          window.threeJsUri = message.threeUri;
+          window.loaderJsUri = message.loaderUri;
+        }
+      });
+      
+      // Import map ile yükleme başarısızsa yedek mekanizmayı dene
+      if (!THREE || !GLTFLoader) {
+        console.warn('[viewer] THREE veya GLTFLoader tanımlı değil, yedek yükleme deneniyor');
+        await loadThreeStack();
+      }
+      
+      console.log('Three.js & GLTFLoader yüklendi');
+      this.THREE = THREE;
       console.log('Canvas element:', this.canvas);
   // Renderer oluşturulurken antialias ve shadow gibi pahalı opsiyonları
   // cihaz kapasitesine göre sonradan açıp kapatabileceğimiz bir yapı kuruyoruz.

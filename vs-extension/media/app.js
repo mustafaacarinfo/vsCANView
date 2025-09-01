@@ -189,21 +189,21 @@ requestAnimationFrame(() => {
 import('./seed.mjs').then(m=>m.seedAll({speed,rpm,gps,pressure,fuelRate,fuelGauge,tGauges}));
 
 // 3D viewer - URI kontrolü ve başlatma
-// Replaced with token so extension can inject a webview-safe URI at runtime
 let vehicleUri = '__VEHICLE_URI__';
 let viewer = null;
 
 console.log('Vehicle URI kontrol ediliyor:', vehicleUri);
 
-// URI placeholder değiştirilmişse direkt başlat
-if (vehicleUri && vehicleUri !== '__VEHICLE_URI__') {
-  console.log('Vehicle URI bulundu, VehicleViewer başlatılıyor:', vehicleUri);
-  startVehicleViewer(vehicleUri);
-} else {
-  console.log('Vehicle URI placeholder henüz değiştirilmemiş');
-  const noticeEl = document.getElementById('vehicleNotice');
-  if (noticeEl) noticeEl.textContent = 'Vehicle model yükleniyor...';
+// Sabit modeli kullan (placeholder değiştirilmemişse)
+if (vehicleUri === '__VEHICLE_URI__') {
+  // Yerel GLB modelinin URI'sini oluştur (göreceli yoldan)
+  vehicleUri = './vehicle.glb';
+  console.log('Vehicle URI yerel dosyaya ayarlandı:', vehicleUri);
 }
+
+// VehicleViewer'ı başlat
+console.log('VehicleViewer başlatılıyor, URI:', vehicleUri);
+startVehicleViewer(vehicleUri);
 
 function startVehicleViewer(uri) {
   // Modeli yükleme işlemi başlıyor - notice'ı tamamen gizle

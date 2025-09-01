@@ -146,14 +146,14 @@ tabs.forEach(t => t.addEventListener('click', () => {
   });
 }));
 
-// Kayıtlı sekmeyi yükle
-const savedTab = localStorage.getItem('can.tab'); 
-if(savedTab && pages[savedTab]) {
-  // Sayfa yüklendikten sonra sekmeye geç (gecikme ile)
-  setTimeout(() => {
-    document.querySelector(`.tab[data-tab="${savedTab}"]`)?.click();
-  }, 100);
-}
+// Her açılışta Overview (dash) sekmesini zorla; önceki kaydedilmiş sekmeyi dikkate almayacağız
+setTimeout(() => {
+  const dash = document.querySelector('.tab[data-tab="dash"]');
+  if (dash) {
+    dash.click();
+    try { localStorage.setItem('can.tab', 'dash'); } catch (e) { /* ignore */ }
+  }
+}, 80);
 
 // Chips persistence
 ['busSel','decodeSel','viewSel','rateSel','idFilter'].forEach(id=>{
@@ -905,6 +905,32 @@ window.addEventListener('message', (ev) => {
   }
 });
 
+// Webview yüklendiğini uzantıya bildir (acquireVsCodeApi tercih edilir)
+try {
+  const vscode = (typeof acquireVsCodeApi === 'function') ? acquireVsCodeApi() : null;
+  if (vscode && typeof vscode.postMessage === 'function') {
+    vscode.postMessage({ type: 'ready' });
+  } else {
+    window.parent?.postMessage?.({ type: 'ready' }, '*');
+  }
+} catch (e) { /* ignore */ }
+
+// Uzantı tarafından gönderilen showOverview mesajını dinle
+window.addEventListener('message', (ev) => {
+  const msg = ev.data; if(!msg) return;
+  if (msg.type === 'showOverview') {
+    try {
+      const overviewTab = document.querySelector('.tab[data-tab="dash"]');
+      if (overviewTab && !overviewTab.classList.contains('active')) {
+        overviewTab.click();
+  try { localStorage.setItem('can.tab', 'dash'); } catch (e) { /* ignore */ }
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
+});
+
 // Çoklu sinyal grafiği için değişkenler
 let areaChart = null;
 let selectedSignals = new Set(); // Seçili sinyalleri izlemek için
@@ -1037,25 +1063,123 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// Resize - performans optimizasyonlu
+// Gelişmiş resize handler - canvas boyutlandırma ve grid layout sorunlarını çözer
 let resizeTimeout = null;
+let layoutChangeTimeout = null;
+
+function forceCanvasResize() {
+  // Tüm canvas elementlerini bul ve boyutlarını yeniden hesapla
+  const canvases = document.querySelectorAll('canvas');
+  canvases.forEach(canvas => {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      // Canvas'ın CSS boyutlarını zorla güncelle
+      canvas.style.width = '100%';
+      canvas.style.height = 'auto';
+      // Kısa bir süre sonra DPR ve backing store'u yeniden hesapla
+      setTimeout(() => {
+        try {
+          ctx2d(canvas);
+        } catch(e) { /* ignore */ }
+      }, 10);
+    }
+  });
+}
+
+function forceChartRedraw() {
+  const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
+  if (activeTab === 'dash' || !activeTab) {
+    // Aşamalı yeniden çizim
+    requestAnimationFrame(() => {
+      // İlk aşama: hızlı çizim
+      try { speed.draw(); } catch(e) {}
+      try { rpm.draw(); } catch(e) {}
+      try { navMap.draw(); } catch(e) {}
+      try { pressure.draw(); } catch(e) {}
+      try { fuelRate.draw(); } catch(e) {}
+      try { fuelGauge.draw(); } catch(e) {}
+      try { engineGauges.draw(); } catch(e) {}
+      
+      // İkinci aşama: layout stabilleştikten sonra tekrar çiz
+      setTimeout(() => {
+        try { speed.draw(); } catch(e) {}
+        try { fuelRate.draw(); } catch(e) {}
+        try { fuelGauge.draw(); } catch(e) {}
+        try { navMap.draw(); } catch(e) {} // GPS haritası için ek çizim
+      }, 50);
+      
+      // Üçüncü aşama: son kontrol - özellikle GPS haritası için
+      setTimeout(() => {
+        try { speed.draw(); } catch(e) {}
+        try { fuelRate.draw(); } catch(e) {}
+        try { navMap.draw(); } catch(e) {} // GPS final redraw
+      }, 150);
+      
+      // GPS için özel ekstra kontrol
+      setTimeout(() => {
+        try { navMap.draw(); } catch(e) {}
+      }, 300);
+    });
+  } else if (activeTab === 'signals' && multiSignalChart) {
+    requestAnimationFrame(() => {
+      try { multiSignalChart.draw(); } catch(e) {}
+    });
+  }
+}
+
 window.addEventListener('resize', () => { 
-  // Resize işlemlerini optimize et - çoklu çağrıları engelle
+  // Hızlı tepki için canvas boyutlarını anında güncelle
+  forceCanvasResize();
+  
+  // Debounced resize işlemi
   if (resizeTimeout) clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(() => {
-    const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
-    if (activeTab === 'dash' || !activeTab) {
-      // Görünür sayfadaki canvas elementleri için yeniden boyutlandırma tetikle
-      speed.draw(); 
-      rpm.draw(); 
-      navMap.draw(); 
-      pressure.draw(); 
-      fuelRate.draw(); 
-      fuelGauge.draw(); 
-      engineGauges.draw();
-    } else if (activeTab === 'signals' && multiSignalChart) {
-      multiSignalChart.draw();
-    }
+    forceCanvasResize();
+    forceChartRedraw();
     resizeTimeout = null;
-  }, 250); // 250ms gecikme ile yeniden boyutlandırma olaylarını birleştir
+  }, 150);
+  
+  // Layout değişikliği için ek kontrol
+  if (layoutChangeTimeout) clearTimeout(layoutChangeTimeout);
+  layoutChangeTimeout = setTimeout(() => {
+    forceCanvasResize();
+    forceChartRedraw();
+    layoutChangeTimeout = null;
+  }, 300);
 });
+
+// Fullscreen değişikliklerini özel olarak ele al
+['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(event => {
+  document.addEventListener(event, () => {
+    setTimeout(() => {
+      forceCanvasResize();
+      forceChartRedraw();
+    }, 100);
+    
+    setTimeout(() => {
+      forceCanvasResize();
+      forceChartRedraw();
+    }, 500);
+  });
+});
+
+// Ekstra güvenlik: window focus ve visibility değişikliklerinde de kontrol et
+window.addEventListener('focus', () => {
+  setTimeout(() => {
+    forceCanvasResize();
+    forceChartRedraw();
+  }, 100);
+});
+
+// Developer tools açılıp kapandığında da kontrol et
+let lastWindowHeight = window.innerHeight;
+let lastWindowWidth = window.innerWidth;
+
+setInterval(() => {
+  if (window.innerHeight !== lastWindowHeight || window.innerWidth !== lastWindowWidth) {
+    lastWindowHeight = window.innerHeight;
+    lastWindowWidth = window.innerWidth;
+    forceCanvasResize();
+    forceChartRedraw();
+  }
+}, 500);

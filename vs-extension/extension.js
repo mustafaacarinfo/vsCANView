@@ -119,9 +119,19 @@ class Dashboard {
       if (message.type === 'getVehicleUri') {
         const wv = this.panel.webview;
         const mediaUri = (...p) => wv.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', ...p)).toString();
+        // Vehicle.glb dosyasını doğrudan göndermek yerine Webview URI'ye dönüştür
         const vehUri = mediaUri('vehicle.glb');
         console.log('Vehicle URI gönderiliyor:', vehUri);
         this.panel.webview.postMessage({ type: 'vehicleUri', uri: vehUri });
+        
+        // Ayrıca Three.js ve GLTFLoader için alternatif URI'ler de gönder
+        const threeUri = mediaUri('js', 'three', 'vendor', 'three.module.js');
+        const loaderUri = mediaUri('js', 'three', 'vendor', 'GLTFLoader.js');
+        this.panel.webview.postMessage({ 
+          type: 'threeUris', 
+          threeUri: threeUri,
+          loaderUri: loaderUri
+        });
       }
     });
     

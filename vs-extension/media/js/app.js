@@ -1105,13 +1105,20 @@ function forceChartRedraw() {
         try { speed.draw(); } catch(e) {}
         try { fuelRate.draw(); } catch(e) {}
         try { fuelGauge.draw(); } catch(e) {}
+        try { navMap.draw(); } catch(e) {} // GPS haritası için ek çizim
       }, 50);
       
-      // Üçüncü aşama: son kontrol
+      // Üçüncü aşama: son kontrol - özellikle GPS haritası için
       setTimeout(() => {
         try { speed.draw(); } catch(e) {}
         try { fuelRate.draw(); } catch(e) {}
+        try { navMap.draw(); } catch(e) {} // GPS final redraw
       }, 150);
+      
+      // GPS için özel ekstra kontrol
+      setTimeout(() => {
+        try { navMap.draw(); } catch(e) {}
+      }, 300);
     });
   } else if (activeTab === 'signals' && multiSignalChart) {
     requestAnimationFrame(() => {

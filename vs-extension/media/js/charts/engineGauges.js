@@ -6,7 +6,7 @@ export class EngineGauges {
     this.oilPressure = new ArcGauge(oilPressureCanvas, {
       min: 0,
       max: 1200,
-      value: null,
+      value: 0,
       unit: ' kPa',
       label: 'Oil Pressure',
       thresholds: { cold: 150, normal: 550, hot: 800 },
@@ -18,7 +18,7 @@ export class EngineGauges {
     this.batteryVoltage = new ArcGauge(batteryVoltageCanvas, {
       min: 8,
       max: 32,
-      value: null,
+      value: 0,
       unit: ' V',
       label: 'Battery Voltage',
       thresholds: { cold: 11, normal: 27, hot: 29 },
@@ -30,7 +30,7 @@ export class EngineGauges {
     this.intakeManifold = new ArcGauge(intakeManifoldCanvas, {
       min: 0,
       max: 500,
-      value: null,
+      value: 0,
       unit: ' kPa',
       label: 'Manifold Pressure',
       thresholds: { cold: 120, normal: 250, hot: 400 },
@@ -42,7 +42,7 @@ export class EngineGauges {
     if(opts.coolantCanvas){
       this.coolantTemp = new ArcGauge(opts.coolantCanvas, {
   // Sadece negatif değerleri gösterecek form: -300 .. 0
-  min: -300, max: 0, value: null, unit: ' °C', label: 'Coolant Temp',
+  min: -300, max: 0, value: -300, unit: ' °C', label: 'Coolant Temp',
   // Tek renk (oil temp tarzı) – segmentler mavi tonunda ilerlesin
   colorStops: [ { upTo: 0, color:'#3b82f6' } ],
   showNeedle:true, showValue:false
@@ -50,13 +50,13 @@ export class EngineGauges {
     }
     if(opts.oilTempCanvas){
       this.oilTemp = new ArcGauge(opts.oilTempCanvas, {
-        min: 0, max: 150, value: null, unit: ' °C', label: 'Oil Temp',
+        min: 0, max: 150, value: 0, unit: ' °C', label: 'Oil Temp',
         thresholds: { cold: 50, normal: 110, hot: 130 }, showNeedle:true, showValue:false
       });
     }
     if(opts.exhaustTempCanvas){
       this.exhaustTemp = new ArcGauge(opts.exhaustTempCanvas, {
-        min: 0, max: 800, value: null, unit: ' °C', label: 'Exhaust Temp',
+        min: 0, max: 800, value: 0, unit: ' °C', label: 'Exhaust Temp',
         thresholds: { cold: 150, normal: 400, hot: 650 }, showNeedle:true, showValue:false
       });
     }

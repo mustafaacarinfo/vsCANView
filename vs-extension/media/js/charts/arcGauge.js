@@ -244,13 +244,19 @@ export class ArcGauge {
           if (seg.end >= valueLimit) break;
         }
       }
+    }
 
-      // İbre / pointer - sadece veri varken çiz
-      let pointerColor = '#60a5fa';
+    // İbre / pointer - her zaman çiz, veri yoksa gri
+    let pointerColor = '#60a5fa';
+    if(!empty){
       for (const seg of this.segments) { if (displayValue <= seg.end) { pointerColor = seg.color; break; } }
       if(this.neutralBelowOrEq != null && displayValue <= this.neutralBelowOrEq){ pointerColor = '#3b82f6'; }
-      this._drawNeedle(ctx, cx, cy, R, start, end, fracVal, pointerColor);
+    } else {
+      // Veri yokken gri ibre
+      pointerColor = 'rgba(96, 165, 250, 0.3)';
+      fracVal = 0; // İbreyi minimum konuma koy
     }
+    this._drawNeedle(ctx, cx, cy, R, start, end, fracVal, pointerColor);
 
   if (this.showValue) {
       // Değer metni

@@ -30,7 +30,7 @@
         {
           "id": "canDebuggerModular",
           "title": "CAN Debugger",
-          "icon": "./images/canbus_icon.png"
+          "icon": "./images/canbus_icon.svg"
         }
       ]
     },

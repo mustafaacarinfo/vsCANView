@@ -17,8 +17,9 @@ const selectionPlugin = {
     const left = Math.min(x1,x2);
     const w = Math.abs(x2-x1);
     ctx.save();
-    ctx.fillStyle = 'rgba(59,130,246,0.15)';
-    ctx.strokeStyle = 'rgba(59,130,246,0.8)';
+  // Seçim alanı rengi (maviden turuncu/amber tona güncellendi)
+  ctx.fillStyle = 'rgba(255,170,0,0.18)';
+  ctx.strokeStyle = 'rgba(255,170,0,0.9)';
     ctx.lineWidth = 2;
     ctx.fillRect(left, chartArea.top, w, chartArea.bottom - chartArea.top);
     ctx.strokeRect(left+0.5, chartArea.top+0.5, w-1, chartArea.bottom-chartArea.top-1);
@@ -51,6 +52,10 @@ const CHART_COLORS_TRANSPARENT = Object.fromEntries(
 
 // Maksimum veri noktası sayısı - 1 dakikalık veri (10 fps ile)
 const MAX_DATA_POINTS = 600;
+// Brush seçim davranışı ayarları
+const DRAG_THRESHOLD_PX = 5; // Bu pixel üzeri hareket varsa seçim başlar (basit tıklama yerine)
+// Kayan zaman penceresi (ms) – ölçek kayması ve boş alan oluşmasını engeller
+const DEFAULT_TIME_WINDOW_MS = 60000; // 60 sn
 
 export class MultiSignalChart {
   constructor(canvasId, legendId) {
@@ -65,6 +70,7 @@ export class MultiSignalChart {
     this._lastUpdateTime = null;
     this._updateScheduled = false;
     this._visible = false;
+  this._lastFullUpdateTime = 0; // ölçek fallback tam güncelleme zaman damgası
   this._resizeObserver = null;
   this._allAvailableSignals = new Map(); // Store all available signals
     this._searchInitialized = false;
@@ -76,6 +82,14 @@ export class MultiSignalChart {
   this._onPointerDown = this._onPointerDown.bind(this);
   this._onPointerMove = this._onPointerMove.bind(this);
   this._onPointerUp = this._onPointerUp.bind(this);
+  this.timeWindowMs = DEFAULT_TIME_WINDOW_MS;
+  this._latestTimestamp = null;
+  this._selectionOutOfView = false; // seçim kayan pencere dışına çıktı mı
+  // Performans / debug alanları
+  this.debug = false; // yoğun logları kapalı tut
+  this._resizeDebounceId = null; // ResizeObserver debouncing
+  this._lastStatsUpdateTime = 0; // istatistik throttle zaman damgası
+  this._statsUpdateInterval = 250; // ms cinsinden istatistik güncelleme aralığı
     
     // Grafik oluşturma
     this.initChart();
@@ -107,7 +121,7 @@ export class MultiSignalChart {
   // Chart.js grafiğini başlat
   initChart() {
     const canvas = document.getElementById(this.canvasId);
-    console.log('initChart çağrıldı, canvas ID:', this.canvasId, 'canvas element:', canvas);
+  if(this.debug) console.log('initChart çağrıldı', this.canvasId, canvas);
     if (!canvas) {
       console.error('Canvas elementi bulunamadı:', this.canvasId);
       return;
@@ -129,7 +143,7 @@ export class MultiSignalChart {
         canvas.width = 800 * dpr;
         canvas.height = 300 * dpr;
       } else {
-        console.log('Canvas boyutları:', rect.width, 'x', rect.height);
+  if(this.debug) console.log('Canvas boyutları:', rect.width, 'x', rect.height);
         // Set CSS size to the measured layout size so Chart.js and CSS agree
         canvas.style.width = rect.width + 'px';
         canvas.style.height = rect.height + 'px';
@@ -142,7 +156,7 @@ export class MultiSignalChart {
         this.chart.destroy();
       }
     } catch (err) {
-      console.error('Canvas boyutlandırma hatası:', err);
+  if(this.debug) console.error('Canvas boyutlandırma hatası:', err);
       // Hata durumunda varsayılan boyutlar
       canvas.style.width = '100%';
       canvas.style.height = '300px';
@@ -227,9 +241,10 @@ export class MultiSignalChart {
             },
             ticks: {
               color: '#9ca3af',
-              font: {
-                size: 10
-              }
+              font: { size: 10 },
+              maxTicksLimit: 8,
+              // Otomatik atlama bazen hiç tick bırakmıyorsa devre dışı bırak
+              autoSkip: false
             }
           }
         }
@@ -238,9 +253,9 @@ export class MultiSignalChart {
     
       try {
         // createChartCore yerine doğrudan Chart.js kullan
-        console.log('Chart.js ile grafik oluşturuluyor, config:', chartConfig);
+  if(this.debug) console.log('Chart.js ile grafik oluşturuluyor');
         this.chart = new Chart(canvas, chartConfig);
-      console.log('Chart başarıyla oluşturuldu:', this.chart);
+  if(this.debug) console.log('Chart başarıyla oluşturuldu');
       // Safety: on window resize ensure Chart.js resizes (some webviews don't forward ResizeObserver events)
       try {
         if (!this._windowResizeHandler) {
@@ -258,14 +273,18 @@ export class MultiSignalChart {
           const target = canvas.closest('.signal-panel') || canvas.parentElement || canvas;
           this._resizeObserver = new ResizeObserver(entries => {
             if (!this.chart) return;
-            for (const ent of entries) {
-              const rect = ent.contentRect || target.getBoundingClientRect();
-              if (rect.width > 0 && rect.height > 0) {
-                canvas.width = rect.width * (window.devicePixelRatio || 1);
-                canvas.height = rect.height * (window.devicePixelRatio || 1);
-                try { this.chart.resize(); this.chart.update('none'); } catch(e){ /* ignore */ }
+            if(this._resizeDebounceId) return; // debounce yoğun resize olaylarını sınırlama
+            this._resizeDebounceId = requestAnimationFrame(()=>{
+              this._resizeDebounceId = null;
+              for (const ent of entries) {
+                const rect = ent.contentRect || target.getBoundingClientRect();
+                if (rect.width > 0 && rect.height > 0) {
+                  canvas.width = rect.width * (window.devicePixelRatio || 1);
+                  canvas.height = rect.height * (window.devicePixelRatio || 1);
+                  try { this.chart.resize(); this.chart.update('none'); } catch(e){ /* ignore */ }
+                }
               }
-            }
+            });
           });
           this._resizeObserver.observe(target);
         }
@@ -279,13 +298,13 @@ export class MultiSignalChart {
           canvas.style.width = r2.width + 'px';
           canvas.style.height = r2.height + 'px';
           try { this.chart.resize(); } catch(e){}
-          console.log('Chart boyutu ayarlandı:', canvas.width, 'x', canvas.height);
+          if(this.debug) console.log('Chart boyutu ayarlandı:', canvas.width, 'x', canvas.height);
 
           // İkinci bir resize 200ms sonra
           setTimeout(() => {
             if (this.chart) {
               try { this.chart.resize(); } catch(e){}
-              console.log('Chart boyutu tekrar ayarlandı');
+              if(this.debug) console.log('Chart boyutu tekrar ayarlandı');
             }
           }, 200);
         }
@@ -294,7 +313,7 @@ export class MultiSignalChart {
       this._attachSelectionHandlers(canvas);
       this._wireStatsButtons();
     } catch (err) {
-      console.error('Chart oluşturma hatası:', err);
+  if(this.debug) console.error('Chart oluşturma hatası:', err);
     }
   }
   _attachSelectionHandlers(canvas){
@@ -303,24 +322,43 @@ export class MultiSignalChart {
     window.addEventListener('pointerup', this._onPointerUp);
   }
 
+  _scheduleDraw(){
+    if(this._drawScheduled) return;
+    this._drawScheduled = true;
+    requestAnimationFrame(()=>{ if(this.chart) this.chart.draw(); this._drawScheduled=false; });
+  }
   _onPointerDown(e){
     if(!this.chart) return;
-    const sel = this.chart.$selection = { drawing:true, x1: e.offsetX, x2: e.offsetX };
-    // Sadece görsel çizim (fast draw) – veriyi değiştirmiyoruz, resize tetiklenmez
-    this.chart.draw();
+    this._pointerDownX = e.offsetX;
+    this._dragging = false;
+    // Başlangıçta drawing=false; threshold aşılınca true olacak
+    this.chart.$selection = { drawing:false, x1:e.offsetX, x2:e.offsetX };
   }
   _onPointerMove(e){
-    if(!this.chart || !this.chart.$selection || !this.chart.$selection.drawing) return;
-    this.chart.$selection.x2 = e.offsetX;
-    this.chart.draw(); // hızlı redraw (dataset değişmediği için hafif)
+    if(!this.chart || !this.chart.$selection) return;
+    const dx = e.offsetX - this._pointerDownX;
+    if(!this._dragging && Math.abs(dx) >= DRAG_THRESHOLD_PX){
+      this._dragging = true;
+      this.chart.$selection.drawing = true;
+      this.chart.$selection.x1 = this._pointerDownX; // başlangıç sabitle
+      this.chart.$selection.x2 = e.offsetX;
+    }
+    if(this._dragging){
+      this.chart.$selection.x2 = e.offsetX;
+      this._scheduleDraw();
+    }
   }
   _onPointerUp(e){
     if(!this.chart || !this.chart.$selection) return;
     const sel = this.chart.$selection;
-    if(!sel.drawing) return;
-    sel.drawing = false; // finalize rectangle still shown until cleared
+    const wasDragging = this._dragging && sel.drawing;
+    if(!wasDragging){
+      // Basit tıklama: seçim yapma, tooltip zaten Chart.js tarafından yönetiliyor
+      this.chart.$selection = null;
+      return;
+    }
+    sel.drawing = false;
     sel.x2 = e.offsetX;
-    // Çok küçük ise temizle
     if(Math.abs(sel.x2 - sel.x1) < 6){
       this.chart.$selection = null;
       this.selection = null;
@@ -343,6 +381,7 @@ export class MultiSignalChart {
     const end   = scale.getValueForPixel(b);
     if(!Number.isFinite(start)||!Number.isFinite(end)) return;
     this.selection = { start: Math.min(start,end), end: Math.max(start,end) };
+  this._selectionOutOfView = false; // yeni seçim yapıldı
     this._recalcStats();
   }
 
@@ -352,6 +391,7 @@ export class MultiSignalChart {
     clearBtn?.addEventListener('click', ()=>{ 
       this.selection=null; 
       this._statsCache=null; 
+  this._selectionOutOfView = false;
       this._updateStatsPanel(); 
       if(this.chart){ this.chart.$selection=null; this.chart.draw(); }
     });
@@ -386,6 +426,14 @@ export class MultiSignalChart {
     this._statsCache = stats;
     this._updateStatsPanel();
   }
+  _maybeRecalcStatsIncremental(ts){
+    if(!this.selection) return;
+    if(ts < this.selection.start || ts > this.selection.end) return;
+    const now = performance.now();
+    if(now - this._lastStatsUpdateTime < this._statsUpdateInterval) return;
+    this._lastStatsUpdateTime = now;
+    this._recalcStats();
+  }
 
   _updateStatsPanel(){
     const panel = document.getElementById('signalStatsPanel');
@@ -395,7 +443,8 @@ export class MultiSignalChart {
     const rangeEl = document.getElementById('multiSignalStatsRange');
     if(rangeEl){
       const { start, end } = this._statsCache.range;
-      rangeEl.textContent = new Date(start).toLocaleTimeString()+ ' – ' + new Date(end).toLocaleTimeString() + `  (${((end-start)/1000).toFixed(2)}s)`;
+  const baseTxt = new Date(start).toLocaleTimeString()+ ' – ' + new Date(end).toLocaleTimeString() + `  (${((end-start)/1000).toFixed(2)}s)`;
+  rangeEl.textContent = this._selectionOutOfView ? baseTxt + '  (out of view)' : baseTxt;
     }
     const tbody = document.querySelector('#multiSignalStatsTable tbody');
     if(tbody){
@@ -611,7 +660,7 @@ export class MultiSignalChart {
   draw() {
     if (!this.chart) {
       // Grafik henüz oluşturulmamışsa, tekrar başlatmayı dene
-      console.log('Grafik henüz oluşturulmamış, yeniden başlatılıyor...');
+  if(this.debug) console.log('Grafik eksik; initChart çağrılıyor');
       this.initChart();
       return;
     }
@@ -620,7 +669,7 @@ export class MultiSignalChart {
   // Boyutlandırma artık ResizeObserver ile yönetiliyor; sadece güncelle
   try { this.chart.update('none'); } catch(e){}
     } catch (err) {
-      console.error('MultiSignalChart çizim hatası:', err);
+  if(this.debug) console.error('MultiSignalChart çizim hatası:', err);
     }
   }
   
@@ -681,6 +730,7 @@ export class MultiSignalChart {
       x: timestamp,
       y: value
     });
+  this._latestTimestamp = timestamp; // kayan pencere için güncel zaman
     
     // Veri noktası sayısını sınırla (en eskiyi at) — ÖNEMLİ: slice ile yeni array atamak
     // dataset.data referansını koparıp grafiğin güncellenmesini durduruyordu. Bu yüzden
@@ -702,6 +752,31 @@ export class MultiSignalChart {
           this._updateScheduled = true;
           requestAnimationFrame(() => {
             if (this.chart) {
+              // Kayan pencere: x ölçeği min/max ayarla ve eski noktaları buda
+              if (this.autoScrollEnabled && this._latestTimestamp) {
+                const windowStart = this._latestTimestamp - this.timeWindowMs;
+                // Ölçeğe uygula
+                const xScaleOpts = this.chart.options.scales.x;
+                xScaleOpts.min = windowStart;
+                xScaleOpts.max = this._latestTimestamp;
+                // Eski noktaları tüm datasetlerde temizle (referans koruyarak)
+                for (const ds of this.chart.data.datasets) {
+                  if (!Array.isArray(ds.data) || ds.data.length === 0) continue;
+                  let removeCount = 0;
+                  // Noktalar kronolojik ise baştan say
+                  for (let i = 0; i < ds.data.length; i++) {
+                    const px = ds.data[i].x !== undefined ? ds.data[i].x : ds.data[i];
+                    if (px < windowStart) removeCount++; else break;
+                  }
+                  if (removeCount > 0) ds.data.splice(0, removeCount);
+                }
+                // Seçim pencere dışına taşmışsa temizle
+                if (this.selection && (this.selection.end < windowStart || this.selection.start > this._latestTimestamp)) {
+                  // Seçim dışarıda: temizleme, sadece out-of-view işareti (stats sabit kalır)
+                  this._selectionOutOfView = true;
+                  this._updateStatsPanel();
+                }
+              }
               this.chart.update('none'); // animasyon olmadan güncelleme
             }
             this._updateScheduled = false;
@@ -710,8 +785,22 @@ export class MultiSignalChart {
       }
       this._lastUpdateTime = timestamp;
     }
+    // Yedek: bazen Chart.js otomatik ölçek hesaplamasında tick dizisi boş kalabiliyor; tam güncelleme uygula
+    try {
+      const yScale = this.chart.scales && this.chart.scales.y;
+      if (yScale && (!yScale.ticks || yScale.ticks.length === 0)) {
+        if (timestamp - this._lastFullUpdateTime > 500) { // 0.5s throttling
+          this.chart.update();
+          this._lastFullUpdateTime = timestamp;
+        }
+      } else if (timestamp - this._lastFullUpdateTime > 8000) {
+        // Periyodik tam güncelleme (önleyici) ~8s
+        this.chart.update();
+        this._lastFullUpdateTime = timestamp;
+      }
+    } catch(e) { /* ignore */ }
     // Aktif seçim varsa ve yeni nokta aralık içine düşüyorsa istatistikleri güncelle (throttle yok - hafif)
-  if(this.selection && timestamp>=this.selection.start && timestamp<=this.selection.end){ this._recalcStats(); }
+  this._maybeRecalcStatsIncremental(timestamp);
   }
   
   // Tüm veriyi temizleme
@@ -788,7 +877,14 @@ export class MultiSignalChart {
   
   // Grafiğin görünürlüğünü ayarla
   setVisible(visible) {
-    console.log(`MultiSignalChart görünürlüğü değiştiriliyor: ${visible ? 'görünür' : 'gizli'}`);
+    if(this.debug) console.log('MultiSignalChart visibility ->', visible);
+    // İlk çağrıda visibilitychange event'i kaydet
+    if(!this._visibilityListenerAttached){
+      this._visibilityListenerAttached = true;
+      document.addEventListener('visibilitychange', ()=>{
+        this._visible = document.visibilityState === 'visible';
+      });
+    }
     
     this._visible = visible;
     
@@ -815,7 +911,7 @@ export class MultiSignalChart {
             canvas.width = rect.width * (window.devicePixelRatio || 1);
             canvas.height = rect.height * (window.devicePixelRatio || 1);
             try { this.chart && this.chart.resize(); this.chart && this.chart.update('none'); } catch(e){}
-            console.log('Grafik görünür yapıldı ve boyutlandırıldı:', rect.width, 'x', rect.height);
+            if(this.debug) console.log('Grafik görünür ve boyutlandırıldı:', rect.width, 'x', rect.height);
             return true;
           }
           return false;

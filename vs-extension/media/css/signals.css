@@ -367,6 +367,9 @@
 .stats-table td.minmax-cell { font-weight:500; }
 .stats-table caption { text-align:left; padding:4px 0; font-size:11px; color:#64748b; }
 
+/* Brush overlay */
+.brush-overlay { pointer-events:none; }
+
 @media (max-width: 1100px){
   .signal-selection-layout { grid-template-columns: 1fr; height:auto; }
   .signal-list-container { max-height:220px; }

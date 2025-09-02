@@ -286,45 +286,47 @@ export class MultiSignalChart {
         this._overlayCanvas.remove();
         this._overlayCanvas = null;
       }
+      // Parent positioning
+      if(getComputedStyle(parent).position === 'static') parent.style.position='relative';
+      // Overlay tuvali: doğrudan canvas'ın üzerine tam oturacak
       const overlay = document.createElement('canvas');
       overlay.className = 'brush-overlay';
-      Object.assign(overlay.style, { position:'absolute', inset:'16px 16px 52px 16px', zIndex: 5, cursor:'crosshair', background:'transparent', pointerEvents:'none' });
-      // inset ayarı: padding ile çakışmasın (container padding:16px); legend altına taşmamak için bottom offset arttırıldı
-      parent.style.position = 'relative';
+      Object.assign(overlay.style, { position:'absolute', top: baseCanvas.offsetTop+'px', left: baseCanvas.offsetLeft+'px', width: baseCanvas.clientWidth+'px', height: baseCanvas.clientHeight+'px', zIndex: 5, cursor:'crosshair', background:'transparent', pointerEvents:'none' });
       parent.appendChild(overlay);
       this._overlayCanvas = overlay;
+      this._baseCanvas = baseCanvas;
       this._resizeOverlay();
       window.addEventListener('resize', ()=>this._resizeOverlay());
-      // Etkileşim layer'ı: pointer events'i yönetmek için ayrı şeffaf div
-      const inter = document.createElement('div');
-      Object.assign(inter.style,{position:'absolute', inset:'16px 16px 52px 16px', zIndex:4, cursor:'crosshair'});
-      parent.appendChild(inter);
-      inter.addEventListener('pointerdown', this._onPointerDown);
-      inter.addEventListener('pointermove', this._onPointerMove);
+      // Etkileşim: doğrudan baseCanvas üzerine dinleyiciler
+      baseCanvas.style.cursor = 'crosshair';
+      baseCanvas.addEventListener('pointerdown', this._onPointerDown);
+      baseCanvas.addEventListener('pointermove', this._onPointerMove);
       window.addEventListener('pointerup', this._onPointerUp);
     } catch(e){ console.warn('overlay setup failed', e); }
   }
 
   _resizeOverlay(){
-    if(!this._overlayCanvas || !this.chart) return;
-    const r = this._overlayCanvas.getBoundingClientRect();
+    if(!this._overlayCanvas || !this.chart || !this._baseCanvas) return;
+    // Canvas boyutlarını baz al
+    const r = this._baseCanvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio||1;
+    Object.assign(this._overlayCanvas.style,{ top: this._baseCanvas.offsetTop+'px', left: this._baseCanvas.offsetLeft+'px', width: this._baseCanvas.clientWidth+'px', height: this._baseCanvas.clientHeight+'px' });
     this._overlayCanvas.width = r.width * dpr;
     this._overlayCanvas.height = r.height * dpr;
     this._drawBrush();
   }
 
   _onPointerDown(e){
-    if(!this.chart) return;
-    const rect = e.currentTarget.getBoundingClientRect();
+    if(!this.chart || !this._baseCanvas) return;
+    const rect = this._baseCanvas.getBoundingClientRect();
     this._brush.active = true;
     this._brush.startX = e.clientX - rect.left;
     this._brush.endX = this._brush.startX;
     this._drawBrush();
   }
   _onPointerMove(e){
-    if(!this._brush.active) return;
-    const rect = e.currentTarget.getBoundingClientRect();
+    if(!this._brush.active || !this._baseCanvas) return;
+    const rect = this._baseCanvas.getBoundingClientRect();
     this._brush.endX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
     this._drawBrush();
   }
@@ -360,8 +362,11 @@ export class MultiSignalChart {
       // çok küçük seçim -> temizle
       this.selection = null; this._statsCache=null; this._updateStatsPanel(); return;
     }
-    const start = scale.getValueForPixel(scale.left + leftPx * (scale.right-scale.left)/scale.width);
-    const end = scale.getValueForPixel(scale.left + rightPx * (scale.right-scale.left)/scale.width);
+  // Chart.js scale piksel koordinatı: canvas içindeki piksel (mutlak) -> scale.getValueForPixel
+  const bbox = this._baseCanvas.getBoundingClientRect();
+  // scale.top/left zaten dahili piksel koordinatları (canvas içi). leftPx doğrudan scale bölgesine göre kaydırılmışsa scale.left eklememize gerek yok.
+  const start = scale.getValueForPixel(scale.left + leftPx);
+  const end = scale.getValueForPixel(scale.left + rightPx);
     if(!Number.isFinite(start)||!Number.isFinite(end)) return;
     this.selection = { start: Math.min(start,end), end: Math.max(start,end) };
     this._statsDirty = true;

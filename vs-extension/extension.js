@@ -4,15 +4,14 @@ const fs = require('fs');
 
 let client = null;
 
+let sessionFirstPanel = true; // VS Code her yeniden açıldığında true başlar (modül yeniden yüklenir)
 function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand('canDebuggerModular.openDashboard', () => Dashboard.createOrShow(context))
   );
   ensureMqtt(context);
-  // VSCode uzantısı başlatıldığında otomatik panel aç
   if (vscode.window.registerWebviewPanelSerializer) {
-    // VSCode 1.74+ için
-    Dashboard.createOrShow(context);
+    Dashboard.createOrShow(context); // İlk panel otomatik
   }
 
   // Basit bir TreeDataProvider kaydet: activity bar içindeki view için veri sağlayacak
@@ -135,14 +134,7 @@ class Dashboard {
       }
     });
     
-    // Panel görünürlük değişiminde webview'e Overview mesajı gönder
-    panel.onDidChangeViewState(e => {
-      try {
-        if (e.webviewPanel.visible) {
-          e.webviewPanel.webview.postMessage({ type: 'showOverview' });
-        }
-      } catch (err) { /* ignore */ }
-    });
+  // Panel görünürlük değişiminde artık Overview zorlaması yok; kullanıcı sekmesi korunur
 
     // Webview'dan gelen mesajları dinle
     panel.webview.onDidReceiveMessage((message) => {
@@ -156,11 +148,9 @@ class Dashboard {
         return;
       }
 
-      // Webview hazır olduğunu bildirdiğinde Overview talep et
+      // Webview hazır olduğunda sadece vehicle URI gönder; sekme kontrolü dışarıda yapılır
       if (message.type === 'ready') {
         try {
-          this.panel.webview.postMessage({ type: 'showOverview' });
-          // Ayrıca vehicle URI gönderebiliriz (webview hazırsa)
           const wv = this.panel.webview;
           const mediaUri = (...p) => wv.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', ...p)).toString();
           const vehUri = mediaUri('vehicle.glb');
@@ -189,6 +179,12 @@ class Dashboard {
       }
     );
     Dashboard.instance = new Dashboard(panel, context);
+    if (sessionFirstPanel) {
+      sessionFirstPanel = false;
+      try { panel.webview.postMessage({ type: 'showOverviewSessionStart' }); } catch {}
+    } else {
+      try { panel.webview.postMessage({ type: 'restoreLastTab' }); } catch {}
+    }
   }
   
   setHtml() {

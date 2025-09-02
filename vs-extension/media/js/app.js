@@ -146,14 +146,24 @@ tabs.forEach(t => t.addEventListener('click', () => {
   });
 }));
 
-// Her açılışta Overview (dash) sekmesini zorla; önceki kaydedilmiş sekmeyi dikkate almayacağız
+// Varsayılan sekme davranışı: eğer hiç seçim yoksa (ilk kullanım) dash ile başla, aksi halde saklanan sekmeyi aç
 setTimeout(() => {
-  const dash = document.querySelector('.tab[data-tab="dash"]');
-  if (dash) {
-    dash.click();
-    try { localStorage.setItem('can.tab', 'dash'); } catch (e) { /* ignore */ }
+  try {
+    const saved = localStorage.getItem('can.tab');
+    if (saved) {
+      const el = document.querySelector(`.tab[data-tab="${saved}"]`);
+      if (el) { el.click(); return; }
+    }
+    // Kaydedilmiş yoksa ilk kullanım: dash
+    const dash = document.querySelector('.tab[data-tab="dash"]');
+    if (dash) dash.click();
+  } catch (_) {
+    const dash = document.querySelector('.tab[data-tab="dash"]');
+    if (dash) dash.click();
   }
-}, 80);
+}, 60);
+
+// Extension'dan gelen özel ilk-açılış / restore taleplerini dinle (postMessage handler aşağıda tanımlanmış durumda)
 
 // Chips persistence
 ['busSel','decodeSel','viewSel','rateSel','idFilter'].forEach(id=>{
@@ -918,18 +928,22 @@ try {
   }
 } catch (e) { /* ignore */ }
 
-// Uzantı tarafından gönderilen showOverview mesajını dinle
+// Uzantı mesajları: ilk kullanımda Overview'a geç veya kaydedilen sekmeyi restore et
 window.addEventListener('message', (ev) => {
   const msg = ev.data; if(!msg) return;
-  if (msg.type === 'showOverview') {
-    try {
+  if (msg.type === 'showOverviewIfFirst' || msg.type === 'showOverviewSessionStart') {
+    // Sadece saved tab yoksa tetikle
+    const saved = localStorage.getItem('can.tab');
+    if (!saved || msg.type === 'showOverviewSessionStart') {
       const overviewTab = document.querySelector('.tab[data-tab="dash"]');
-      if (overviewTab && !overviewTab.classList.contains('active')) {
-        overviewTab.click();
-  try { localStorage.setItem('can.tab', 'dash'); } catch (e) { /* ignore */ }
-      }
-    } catch (err) {
-      // ignore
+      if (overviewTab && !overviewTab.classList.contains('active')) overviewTab.click();
+      try { localStorage.setItem('can.tab', 'dash'); } catch {}
+    }
+  } else if (msg.type === 'restoreLastTab') {
+    const saved = localStorage.getItem('can.tab');
+    if (saved) {
+      const el = document.querySelector(`.tab[data-tab="${saved}"]`);
+      if (el && !el.classList.contains('active')) el.click();
     }
   }
 });

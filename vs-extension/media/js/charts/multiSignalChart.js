@@ -682,9 +682,13 @@ export class MultiSignalChart {
       y: value
     });
     
-    // Veri noktası sayısını sınırla (eskiden yeniye doğru)
+    // Veri noktası sayısını sınırla (en eskiyi at) — ÖNEMLİ: slice ile yeni array atamak
+    // dataset.data referansını koparıp grafiğin güncellenmesini durduruyordu. Bu yüzden
+    // yerinde (in-place) splice kullanıyoruz ki Chart.js aynı array referansını izlemeye devam etsin.
     if (this.signalData[signalId].length > MAX_DATA_POINTS) {
-      this.signalData[signalId] = this.signalData[signalId].slice(-MAX_DATA_POINTS);
+      const extra = this.signalData[signalId].length - MAX_DATA_POINTS;
+      // En baştan 'extra' adet elemanı sil
+      this.signalData[signalId].splice(0, extra);
     }
     
     // Performans optimizasyonu: Her veri ekleme için güncelleme yapmak yerine
@@ -714,7 +718,14 @@ export class MultiSignalChart {
   clearData() {
   // Clear all signal data
     // Clear stored signal values
-    Object.keys(this.signalData).forEach(signalId => { this.signalData[signalId] = []; });
+    Object.keys(this.signalData).forEach(signalId => {
+      // Referansları koparmamak için mevcut array'i temizle
+      if (Array.isArray(this.signalData[signalId])) {
+        this.signalData[signalId].length = 0;
+      } else {
+        this.signalData[signalId] = [];
+      }
+    });
 
     // Reset selected signals and legend
     try {

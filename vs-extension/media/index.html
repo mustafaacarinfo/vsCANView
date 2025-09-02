@@ -242,6 +242,26 @@
             <div class="signals-legend" id="signalLegend">
               <!-- Signal color legend moved here -->
             </div>
+            <!-- Selection based statistics panel -->
+            <div class="signal-stats-panel" id="signalStatsPanel" style="display:none">
+              <div class="stats-header">
+                <div class="stats-range" id="multiSignalStatsRange">—</div>
+                <div class="stats-actions">
+                  <button class="btn stats-btn" id="clearSelectionBtn" title="Seçimi temizle">✖ Clear Selection</button>
+                  <button class="btn stats-btn" id="exportSelectionBtn" title="İstatistikleri JSON olarak dışa aktar">⬇ Export</button>
+                </div>
+              </div>
+              <div class="stats-table-wrapper">
+                <table class="stats-table" id="multiSignalStatsTable">
+                  <thead>
+                    <tr>
+                      <th>Signal</th><th>Min</th><th>Max</th><th>Avg</th><th>Median</th><th>Std</th><th>Δ (Max-Min)</th><th>Cnt</th><th>Hz</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -46,6 +46,15 @@ export class MultiSignalChart {
   this._allAvailableSignals = new Map(); // Store all available signals
     this._searchInitialized = false;
     this.autoScrollEnabled = true; // Otomatik kaydırma varsayılan olarak açık
+  // Selection / stats state
+  this.selection = null; // {start,end}
+  this._brush = { active:false, startX:0, endX:0 };
+  this._statsDirty = false;
+  this._statsCache = null; // cache for current selection
+  this._overlayCanvas = null; // for brush rectangle
+  this._onPointerMove = this._onPointerMove.bind(this);
+  this._onPointerDown = this._onPointerDown.bind(this);
+  this._onPointerUp = this._onPointerUp.bind(this);
     
     // Grafik oluşturma
     this.initChart();
@@ -260,8 +269,167 @@ export class MultiSignalChart {
           }, 200);
         }
       }, 100);
+      // Overlay canvas (brush) kurulum
+      this._setupOverlay(canvas);
+      this._wireStatsButtons();
     } catch (err) {
       console.error('Chart oluşturma hatası:', err);
+    }
+  }
+
+  _setupOverlay(baseCanvas){
+    try {
+      const parent = baseCanvas.parentElement;
+      if(!parent) return;
+      // Eski overlay'i kaldır
+      if(this._overlayCanvas){
+        this._overlayCanvas.remove();
+        this._overlayCanvas = null;
+      }
+      const overlay = document.createElement('canvas');
+      overlay.className = 'brush-overlay';
+      Object.assign(overlay.style, { position:'absolute', inset:'16px 16px 52px 16px', zIndex: 5, cursor:'crosshair', background:'transparent', pointerEvents:'none' });
+      // inset ayarı: padding ile çakışmasın (container padding:16px); legend altına taşmamak için bottom offset arttırıldı
+      parent.style.position = 'relative';
+      parent.appendChild(overlay);
+      this._overlayCanvas = overlay;
+      this._resizeOverlay();
+      window.addEventListener('resize', ()=>this._resizeOverlay());
+      // Etkileşim layer'ı: pointer events'i yönetmek için ayrı şeffaf div
+      const inter = document.createElement('div');
+      Object.assign(inter.style,{position:'absolute', inset:'16px 16px 52px 16px', zIndex:4, cursor:'crosshair'});
+      parent.appendChild(inter);
+      inter.addEventListener('pointerdown', this._onPointerDown);
+      inter.addEventListener('pointermove', this._onPointerMove);
+      window.addEventListener('pointerup', this._onPointerUp);
+    } catch(e){ console.warn('overlay setup failed', e); }
+  }
+
+  _resizeOverlay(){
+    if(!this._overlayCanvas || !this.chart) return;
+    const r = this._overlayCanvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio||1;
+    this._overlayCanvas.width = r.width * dpr;
+    this._overlayCanvas.height = r.height * dpr;
+    this._drawBrush();
+  }
+
+  _onPointerDown(e){
+    if(!this.chart) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    this._brush.active = true;
+    this._brush.startX = e.clientX - rect.left;
+    this._brush.endX = this._brush.startX;
+    this._drawBrush();
+  }
+  _onPointerMove(e){
+    if(!this._brush.active) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    this._brush.endX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    this._drawBrush();
+  }
+  _onPointerUp(){
+    if(!this._brush.active) return;
+    this._brush.active = false;
+    this._drawBrush(true); // finalize
+    this._computeSelection();
+  }
+
+  _drawBrush(finalize=false){
+    const c = this._overlayCanvas; if(!c) return;
+    const ctx = c.getContext('2d'); if(!ctx) return;
+    ctx.clearRect(0,0,c.width,c.height);
+    if(!this._brush.active && !finalize) return;
+    const dpr = window.devicePixelRatio||1;
+    const x1 = Math.min(this._brush.startX, this._brush.endX)*dpr;
+    const x2 = Math.max(this._brush.startX, this._brush.endX)*dpr;
+    const w = Math.max(2, x2-x1);
+    ctx.fillStyle='rgba(59,130,246,0.15)';
+    ctx.fillRect(x1,0,w,c.height);
+    ctx.strokeStyle='rgba(59,130,246,0.8)';
+    ctx.lineWidth=2;
+    ctx.strokeRect(x1+0.5,0.5,w-1,c.height-1);
+  }
+
+  _computeSelection(){
+    if(!this.chart) return;
+    const scale = this.chart.scales?.x; if(!scale) return;
+    const leftPx = Math.min(this._brush.startX, this._brush.endX);
+    const rightPx = Math.max(this._brush.startX, this._brush.endX);
+    if(Math.abs(rightPx-leftPx) < 6){
+      // çok küçük seçim -> temizle
+      this.selection = null; this._statsCache=null; this._updateStatsPanel(); return;
+    }
+    const start = scale.getValueForPixel(scale.left + leftPx * (scale.right-scale.left)/scale.width);
+    const end = scale.getValueForPixel(scale.left + rightPx * (scale.right-scale.left)/scale.width);
+    if(!Number.isFinite(start)||!Number.isFinite(end)) return;
+    this.selection = { start: Math.min(start,end), end: Math.max(start,end) };
+    this._statsDirty = true;
+    this._recalcStats();
+  }
+
+  _wireStatsButtons(){
+    const clearBtn = document.getElementById('clearSelectionBtn');
+    const exportBtn = document.getElementById('exportSelectionBtn');
+    clearBtn?.addEventListener('click', ()=>{ this.selection=null; this._statsCache=null; this._updateStatsPanel(); this._drawBrush(); });
+    exportBtn?.addEventListener('click', ()=>{ if(!this._statsCache) return; const blob=new Blob([JSON.stringify(this._statsCache,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='signal-stats.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),500); });
+  }
+
+  _recalcStats(){
+    if(!this.selection || !this.chart) { this._updateStatsPanel(); return; }
+    const { start, end } = this.selection;
+    const stats = { range:{ start, end }, signals:[] };
+    const durationSec = (end-start)/1000;
+    for(const ds of this.chart.data.datasets){
+      const arr = ds.data; if(!Array.isArray(arr)||!arr.length) continue;
+      // Filter by range (arr item may be {x,y} or primitive)
+      const slice = [];
+      for(const p of arr){
+        const x = (p && typeof p==='object') ? p.x : p;
+        const y = (p && typeof p==='object') ? p.y : undefined;
+        if(x>=start && x<=end && Number.isFinite(y)) slice.push(y);
+      }
+      if(!slice.length) continue;
+      let min = Infinity, max = -Infinity, sum=0;
+      for(const v of slice){ if(v<min) min=v; if(v>max) max=v; sum+=v; }
+      const avg = sum / slice.length;
+      const sorted = slice.slice().sort((a,b)=>a-b);
+      const mid = Math.floor(sorted.length/2);
+      const median = sorted.length%2? sorted[mid] : (sorted[mid-1]+sorted[mid])/2;
+      let variance=0; for(const v of slice){ const d=v-avg; variance+=d*d; }
+      const std = Math.sqrt(variance / slice.length);
+      stats.signals.push({ id: ds.signalId||ds.label, label: ds.label, count: slice.length, min, max, avg, median, std, delta: max-min, hz: durationSec>0? (slice.length/durationSec):0 });
+    }
+    this._statsCache = stats;
+    this._updateStatsPanel();
+  }
+
+  _updateStatsPanel(){
+    const panel = document.getElementById('signalStatsPanel');
+    if(!panel){ return; }
+    if(!this._statsCache){ panel.style.display='none'; return; }
+    panel.style.display='flex';
+    const rangeEl = document.getElementById('multiSignalStatsRange');
+    if(rangeEl){
+      const { start, end } = this._statsCache.range;
+      rangeEl.textContent = new Date(start).toLocaleTimeString()+ ' – ' + new Date(end).toLocaleTimeString() + `  (${((end-start)/1000).toFixed(2)}s)`;
+    }
+    const tbody = document.querySelector('#multiSignalStatsTable tbody');
+    if(tbody){
+      tbody.innerHTML='';
+      for(const s of this._statsCache.signals){
+        const tr=document.createElement('tr');
+        tr.innerHTML = `<td>${s.label}</td>`+
+          `<td class='minmax-cell'>${s.min.toFixed(2)}</td>`+
+          `<td class='minmax-cell'>${s.max.toFixed(2)}</td>`+
+          `<td>${s.avg.toFixed(2)}</td>`+
+          `<td>${s.median.toFixed(2)}</td>`+
+          `<td>${s.std.toFixed(2)}</td>`+
+          `<td>${s.delta.toFixed(2)}</td>`+
+          `<td>${s.count}</td>`+
+          `<td>${s.hz.toFixed(1)}</td>`;
+        tbody.appendChild(tr);
+      }
     }
   }
   
@@ -554,6 +722,11 @@ export class MultiSignalChart {
         }
       }
       this._lastUpdateTime = timestamp;
+    }
+    // Aktif seçim varsa ve yeni nokta aralık içine düşüyorsa istatistikleri güncelle (throttle yok - hafif)
+    if(this.selection && timestamp>=this.selection.start && timestamp<=this.selection.end){
+      // incremental update basit: cache'i geçersiz kıl, yeniden hesapla (dataset sayısı az)
+      this._recalcStats();
     }
   }
   

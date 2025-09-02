@@ -4,6 +4,29 @@ import { Chart, registerables } from 'chart.js';
 // Chart.js tree-shaking nedeniyle gerekli bileşenleri kaydet
 Chart.register(...registerables);
 
+// Seçim (brush) plugin'i: sadece chartArea üzerinde yarı saydam bant çizer
+const selectionPlugin = {
+  id: 'selectionPlugin',
+  afterDraw(chart) {
+    const sel = chart.$selection;
+    if(!sel || !sel.drawing) return;
+    const { ctx, chartArea } = chart;
+    const x1 = Math.max(chartArea.left, Math.min(chartArea.right, sel.x1));
+    const x2 = Math.max(chartArea.left, Math.min(chartArea.right, sel.x2));
+    if (Math.abs(x2 - x1) < 2) return;
+    const left = Math.min(x1,x2);
+    const w = Math.abs(x2-x1);
+    ctx.save();
+    ctx.fillStyle = 'rgba(59,130,246,0.15)';
+    ctx.strokeStyle = 'rgba(59,130,246,0.8)';
+    ctx.lineWidth = 2;
+    ctx.fillRect(left, chartArea.top, w, chartArea.bottom - chartArea.top);
+    ctx.strokeRect(left+0.5, chartArea.top+0.5, w-1, chartArea.bottom-chartArea.top-1);
+    ctx.restore();
+  }
+};
+Chart.register(selectionPlugin);
+
 // Chart.js için gerekli renk paleti
 const CHART_COLORS = {
   red: 'rgb(255, 99, 132)',
@@ -48,12 +71,10 @@ export class MultiSignalChart {
     this.autoScrollEnabled = true; // Otomatik kaydırma varsayılan olarak açık
   // Selection / stats state
   this.selection = null; // {start,end}
-  this._brush = { active:false, startX:0, endX:0 };
   this._statsDirty = false;
   this._statsCache = null; // cache for current selection
-  this._overlayCanvas = null; // for brush rectangle
-  this._onPointerMove = this._onPointerMove.bind(this);
   this._onPointerDown = this._onPointerDown.bind(this);
+  this._onPointerMove = this._onPointerMove.bind(this);
   this._onPointerUp = this._onPointerUp.bind(this);
     
     // Grafik oluşturma
@@ -269,114 +290,71 @@ export class MultiSignalChart {
           }, 200);
         }
       }, 100);
-      // Overlay canvas (brush) kurulum
-      this._setupOverlay(canvas);
+      // Seçim event'leri
+      this._attachSelectionHandlers(canvas);
       this._wireStatsButtons();
     } catch (err) {
       console.error('Chart oluşturma hatası:', err);
     }
   }
-
-  _setupOverlay(baseCanvas){
-    try {
-      const parent = baseCanvas.parentElement;
-      if(!parent) return;
-      // Eski overlay'i kaldır
-      if(this._overlayCanvas){
-        this._overlayCanvas.remove();
-        this._overlayCanvas = null;
-      }
-      // Parent positioning
-      if(getComputedStyle(parent).position === 'static') parent.style.position='relative';
-      // Overlay tuvali: doğrudan canvas'ın üzerine tam oturacak
-      const overlay = document.createElement('canvas');
-      overlay.className = 'brush-overlay';
-      Object.assign(overlay.style, { position:'absolute', top: baseCanvas.offsetTop+'px', left: baseCanvas.offsetLeft+'px', width: baseCanvas.clientWidth+'px', height: baseCanvas.clientHeight+'px', zIndex: 5, cursor:'crosshair', background:'transparent', pointerEvents:'none' });
-      parent.appendChild(overlay);
-      this._overlayCanvas = overlay;
-      this._baseCanvas = baseCanvas;
-      this._resizeOverlay();
-      window.addEventListener('resize', ()=>this._resizeOverlay());
-      // Etkileşim: doğrudan baseCanvas üzerine dinleyiciler
-      baseCanvas.style.cursor = 'crosshair';
-      baseCanvas.addEventListener('pointerdown', this._onPointerDown);
-      baseCanvas.addEventListener('pointermove', this._onPointerMove);
-      window.addEventListener('pointerup', this._onPointerUp);
-    } catch(e){ console.warn('overlay setup failed', e); }
-  }
-
-  _resizeOverlay(){
-    if(!this._overlayCanvas || !this.chart || !this._baseCanvas) return;
-    // Canvas boyutlarını baz al
-    const r = this._baseCanvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio||1;
-    Object.assign(this._overlayCanvas.style,{ top: this._baseCanvas.offsetTop+'px', left: this._baseCanvas.offsetLeft+'px', width: this._baseCanvas.clientWidth+'px', height: this._baseCanvas.clientHeight+'px' });
-    this._overlayCanvas.width = r.width * dpr;
-    this._overlayCanvas.height = r.height * dpr;
-    this._drawBrush();
+  _attachSelectionHandlers(canvas){
+    canvas.addEventListener('pointerdown', this._onPointerDown);
+    canvas.addEventListener('pointermove', this._onPointerMove);
+    window.addEventListener('pointerup', this._onPointerUp);
   }
 
   _onPointerDown(e){
-    if(!this.chart || !this._baseCanvas) return;
-    const rect = this._baseCanvas.getBoundingClientRect();
-    this._brush.active = true;
-    this._brush.startX = e.clientX - rect.left;
-    this._brush.endX = this._brush.startX;
-    this._drawBrush();
+    if(!this.chart) return;
+    const sel = this.chart.$selection = { drawing:true, x1: e.offsetX, x2: e.offsetX };
+    // Sadece görsel çizim (fast draw) – veriyi değiştirmiyoruz, resize tetiklenmez
+    this.chart.draw();
   }
   _onPointerMove(e){
-    if(!this._brush.active || !this._baseCanvas) return;
-    const rect = this._baseCanvas.getBoundingClientRect();
-    this._brush.endX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-    this._drawBrush();
+    if(!this.chart || !this.chart.$selection || !this.chart.$selection.drawing) return;
+    this.chart.$selection.x2 = e.offsetX;
+    this.chart.draw(); // hızlı redraw (dataset değişmediği için hafif)
   }
-  _onPointerUp(){
-    if(!this._brush.active) return;
-    this._brush.active = false;
-    this._drawBrush(true); // finalize
-    this._computeSelection();
-  }
-
-  _drawBrush(finalize=false){
-    const c = this._overlayCanvas; if(!c) return;
-    const ctx = c.getContext('2d'); if(!ctx) return;
-    ctx.clearRect(0,0,c.width,c.height);
-    if(!this._brush.active && !finalize) return;
-    const dpr = window.devicePixelRatio||1;
-    const x1 = Math.min(this._brush.startX, this._brush.endX)*dpr;
-    const x2 = Math.max(this._brush.startX, this._brush.endX)*dpr;
-    const w = Math.max(2, x2-x1);
-    ctx.fillStyle='rgba(59,130,246,0.15)';
-    ctx.fillRect(x1,0,w,c.height);
-    ctx.strokeStyle='rgba(59,130,246,0.8)';
-    ctx.lineWidth=2;
-    ctx.strokeRect(x1+0.5,0.5,w-1,c.height-1);
-  }
-
-  _computeSelection(){
-    if(!this.chart) return;
-    const scale = this.chart.scales?.x; if(!scale) return;
-    const leftPx = Math.min(this._brush.startX, this._brush.endX);
-    const rightPx = Math.max(this._brush.startX, this._brush.endX);
-    if(Math.abs(rightPx-leftPx) < 6){
-      // çok küçük seçim -> temizle
-      this.selection = null; this._statsCache=null; this._updateStatsPanel(); return;
+  _onPointerUp(e){
+    if(!this.chart || !this.chart.$selection) return;
+    const sel = this.chart.$selection;
+    if(!sel.drawing) return;
+    sel.drawing = false; // finalize rectangle still shown until cleared
+    sel.x2 = e.offsetX;
+    // Çok küçük ise temizle
+    if(Math.abs(sel.x2 - sel.x1) < 6){
+      this.chart.$selection = null;
+      this.selection = null;
+      this._statsCache = null;
+      this._updateStatsPanel();
+      this.chart.draw();
+      return;
     }
-  // Chart.js scale piksel koordinatı: canvas içindeki piksel (mutlak) -> scale.getValueForPixel
-  const bbox = this._baseCanvas.getBoundingClientRect();
-  // scale.top/left zaten dahili piksel koordinatları (canvas içi). leftPx doğrudan scale bölgesine göre kaydırılmışsa scale.left eklememize gerek yok.
-  const start = scale.getValueForPixel(scale.left + leftPx);
-  const end = scale.getValueForPixel(scale.left + rightPx);
+    this._finalizeSelection();
+  }
+
+  _finalizeSelection(){
+    if(!this.chart || !this.chart.$selection) return;
+    const { x1, x2 } = this.chart.$selection;
+    const scale = this.chart.scales?.x; if(!scale) return;
+    const area = this.chart.chartArea;
+    const clamp = (x)=> Math.max(area.left, Math.min(area.right, x));
+    const a = clamp(x1), b = clamp(x2);
+    const start = scale.getValueForPixel(a);
+    const end   = scale.getValueForPixel(b);
     if(!Number.isFinite(start)||!Number.isFinite(end)) return;
     this.selection = { start: Math.min(start,end), end: Math.max(start,end) };
-    this._statsDirty = true;
     this._recalcStats();
   }
 
   _wireStatsButtons(){
     const clearBtn = document.getElementById('clearSelectionBtn');
     const exportBtn = document.getElementById('exportSelectionBtn');
-    clearBtn?.addEventListener('click', ()=>{ this.selection=null; this._statsCache=null; this._updateStatsPanel(); this._drawBrush(); });
+    clearBtn?.addEventListener('click', ()=>{ 
+      this.selection=null; 
+      this._statsCache=null; 
+      this._updateStatsPanel(); 
+      if(this.chart){ this.chart.$selection=null; this.chart.draw(); }
+    });
     exportBtn?.addEventListener('click', ()=>{ if(!this._statsCache) return; const blob=new Blob([JSON.stringify(this._statsCache,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='signal-stats.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),500); });
   }
 
@@ -729,10 +707,7 @@ export class MultiSignalChart {
       this._lastUpdateTime = timestamp;
     }
     // Aktif seçim varsa ve yeni nokta aralık içine düşüyorsa istatistikleri güncelle (throttle yok - hafif)
-    if(this.selection && timestamp>=this.selection.start && timestamp<=this.selection.end){
-      // incremental update basit: cache'i geçersiz kıl, yeniden hesapla (dataset sayısı az)
-      this._recalcStats();
-    }
+  if(this.selection && timestamp>=this.selection.start && timestamp<=this.selection.end){ this._recalcStats(); }
   }
   
   // Tüm veriyi temizleme

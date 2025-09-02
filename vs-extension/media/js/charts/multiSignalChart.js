@@ -466,16 +466,8 @@ export class MultiSignalChart {
     }
     
     try {
-      // Canvas boyutlarını tekrar ayarla ve grafiği güncelle
-      const canvas = document.getElementById(this.canvasId);
-      if (canvas) {
-        const r = canvas.getBoundingClientRect();
-        canvas.style.width = r.width + 'px';
-        canvas.style.height = r.height + 'px';
-        try { this.chart.resize(); } catch(e){}
-        try { this.chart.update(); } catch(e){}
-        console.log('MultiSignalChart çizildi ve güncellendi.');
-      }
+  // Boyutlandırma artık ResizeObserver ile yönetiliyor; sadece güncelle
+  try { this.chart.update('none'); } catch(e){}
     } catch (err) {
       console.error('MultiSignalChart çizim hatası:', err);
     }

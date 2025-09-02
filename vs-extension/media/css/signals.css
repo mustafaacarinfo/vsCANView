@@ -6,8 +6,9 @@
 .signals-container {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px;
+  gap: 12px;
+  /* Alt taraftaki gereksiz boşluğu azaltmak için padding-bottom düşürüldü */
+  padding: 16px 20px 8px 20px;
   color: #e5e7eb;
 }
 
@@ -76,7 +77,10 @@
   display: grid;
   grid-template-columns: 300px 1fr;
   gap: 20px;
-  height: 450px; /* Biraz daha yükseklik verelim */
+  /* Sabit yükseklik kaldırıldı; içerik kadar yer kaplasın */
+  /* Grafik titremesini önlemek için stabil yükseklik veriyoruz */
+  height: 420px;
+  min-height: 420px;
 }
 
 .signal-list-container {
@@ -137,8 +141,8 @@
   border: 1px solid #1f2937;
   border-radius: 4px;
   padding: 6px;
-  height: 300px; /* Sabit yükseklik tanımlıyoruz */
-  max-height: 300px; /* Maksimum yükseklik kısıtlaması */
+  /* Sabit yükseklikler kaldırıldı; dinamik büyüsün, üst sınıra kadar */
+  max-height: 360px;
 }
 
 .signal-list {
@@ -198,28 +202,29 @@
 
 .signal-chart-container {
   width: 100%;
-  height: 100%;
+  height: 100%; /* parent grid satırı ile sabitlenecek */
   background: #111827;
   border-radius: 6px;
   padding: 16px;
   position: relative;
   display: flex;
   flex-direction: column;
+  overflow: hidden; /* scrollbar dalgalanmasını engelle */
 }
 
 .signal-chart-container canvas {
   width: 100% !important;
-  height: calc(100% - 40px) !important;
+  height: 100% !important; /* container yüksekliğini tamamen doldur */
   display: block;
-  max-height: calc(100% - 40px);
+  max-height: 100%;
 }
 
 #multiSignalAreaChart {
   width: 100% !important;
-  height: calc(100% - 40px) !important;
+  height: 100% !important;
   background: transparent;
   max-width: 100%;
-  flex: 1;
+  flex: 1 1 auto;
 }
 
 .no-signals-message {
@@ -235,8 +240,9 @@
 /* Canvas boyutlandırma sorunu için net boyut tanımları */
 #page-signals {
   width: 100%;
-  min-height: 600px;
-  display: block;
+  /* min-height azaltıldı; içerik kadar olsun */
+  min-height: 400px;
+  /* display:block kaldırıldı: aktif değilken boş alan yaratıyordu */
 }
 
 .signal-panel {

@@ -122,6 +122,7 @@ export class VehicleViewer {
     this.modelUri=modelUri; 
     this.initialized=false;
     this.handleResize=()=>this.resize();
+  this._contextLost=false;
   }
   
   async init(){
@@ -185,6 +186,30 @@ export class VehicleViewer {
   this.renderer.setClearColor(0x0e131a, 1);
   this.renderer.outputEncoding = THREE.sRGBEncoding; // Doğru renk
   console.log('WebGL Renderer oluşturuldu:', this.renderer);
+
+  // WebGL context kaybı durumunu ele al
+  if (this.canvas) {
+    this.canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      this._contextLost = true;
+      console.warn('WebGL context kaybedildi');
+      this.notice('WebGL context lost - restoring...');
+    });
+    this.canvas.addEventListener('webglcontextrestored', () => {
+      console.warn('WebGL context geri yüklendi');
+      this._contextLost = false;
+      this.notice('');
+      // Renderer bazı durumlarda yeniden yaratılmalı; basit senaryo için refresh yeterli
+      this.refresh();
+    });
+  }
+
+  // Sekme / pencere görünürlüğü değişince yeniden çiz
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      this.refresh();
+    }
+  });
       
   this.scene = new THREE.Scene();
   // Chart/panel teması ile aynı arka plan
@@ -502,5 +527,18 @@ export class VehicleViewer {
     
     render(0); 
     console.log('Render döngüsü başladı');
+  }
+
+  // Sekme geri geldiğinde veya görünürlük değiştiğinde güvenli yeniden çizim
+  refresh(){
+    if(!this.renderer || !this.camera || !this.scene) return;
+    this.resize(); // boyutları güncelle (içinde tek kare render var)
+    // Ek güvenlik: görünürlük gözlemi hemen tetikle
+    if (this.visibilityObserver && this.canvas) {
+      // IntersectionObserver async olduğundan kısa gecikme ile ekstra kare
+      setTimeout(()=>{
+        try { this.renderer.render(this.scene, this.camera); } catch(e) {}
+      }, 60);
+    }
   }
 }

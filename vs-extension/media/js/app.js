@@ -1056,6 +1056,15 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (areaChart) {
         areaChart.setVisible(false);
       }
+      // 3D araç modeli için: Dash sekmesi tekrar aktif olduğunda yeniden boyutlandır & tek kare render et
+      if (tab.dataset.tab === 'dash' && viewer && viewer.initialized) {
+        // Geçişi hafiflet: önce hızlı refresh, sonra idle zamanı bekle
+        viewer.refresh && viewer.refresh();
+        const idleCb = window.requestIdleCallback || function(cb){setTimeout(cb,90)};
+        idleCb(()=> viewer.refresh && viewer.refresh());
+      }
+      // Sekme değişiminde grafik redraw'u iste fakat yığılmasını engelle
+      forceChartRedraw();
     });
   });
   
@@ -1091,41 +1100,30 @@ function forceCanvasResize() {
 
 function forceChartRedraw() {
   const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
-  if (activeTab === 'dash' || !activeTab) {
-    // Aşamalı yeniden çizim
+  // Tek seferlik planlanmış redraw (debounce + batching)
+  if (!window._dashRedrawScheduled) {
+    window._dashRedrawScheduled = true;
     requestAnimationFrame(() => {
-      // İlk aşama: hızlı çizim
-      try { speed.draw(); } catch(e) {}
-      try { rpm.draw(); } catch(e) {}
-      try { navMap.draw(); } catch(e) {}
-      try { pressure.draw(); } catch(e) {}
-      try { fuelRate.draw(); } catch(e) {}
-      try { fuelGauge.draw(); } catch(e) {}
-      try { engineGauges.draw(); } catch(e) {}
-      
-      // İkinci aşama: layout stabilleştikten sonra tekrar çiz
-      setTimeout(() => {
+      if (activeTab === 'dash' || !activeTab) {
         try { speed.draw(); } catch(e) {}
+        try { rpm.draw(); } catch(e) {}
+        try { pressure.draw(); } catch(e) {}
         try { fuelRate.draw(); } catch(e) {}
         try { fuelGauge.draw(); } catch(e) {}
-        try { navMap.draw(); } catch(e) {} // GPS haritası için ek çizim
-      }, 50);
-      
-      // Üçüncü aşama: son kontrol - özellikle GPS haritası için
-      setTimeout(() => {
-        try { speed.draw(); } catch(e) {}
-        try { fuelRate.draw(); } catch(e) {}
-        try { navMap.draw(); } catch(e) {} // GPS final redraw
-      }, 150);
-      
-      // GPS için özel ekstra kontrol
-      setTimeout(() => {
+        try { engineGauges.draw(); } catch(e) {}
         try { navMap.draw(); } catch(e) {}
-      }, 300);
-    });
-  } else if (activeTab === 'signals' && multiSignalChart) {
-    requestAnimationFrame(() => {
-      try { multiSignalChart.draw(); } catch(e) {}
+        // Stabilizasyon için ikinci hafif tur yalnızca harita & kritik göstergeler
+        requestAnimationFrame(() => {
+          try { navMap.draw(); } catch(e) {}
+          try { speed.draw(); } catch(e) {}
+          window._dashRedrawScheduled = false;
+        });
+      } else if (activeTab === 'signals' && multiSignalChart) {
+        try { multiSignalChart.draw(); } catch(e) {}
+        window._dashRedrawScheduled = false;
+      } else {
+        window._dashRedrawScheduled = false;
+      }
     });
   }
 }
@@ -1137,18 +1135,21 @@ window.addEventListener('resize', () => {
   // Debounced resize işlemi
   if (resizeTimeout) clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(() => {
-    forceCanvasResize();
-    forceChartRedraw();
+    forceCanvasResize(); // tek tekrar
+    forceChartRedraw();  // hafif redraw
     resizeTimeout = null;
-  }, 150);
+  }, 100);
   
   // Layout değişikliği için ek kontrol
   if (layoutChangeTimeout) clearTimeout(layoutChangeTimeout);
   layoutChangeTimeout = setTimeout(() => {
-    forceCanvasResize();
-    forceChartRedraw();
+    // Eğer ilk debounce henüz çalıştıysa ekstra yük bindirme
+    if (!window._dashRedrawScheduled) {
+      forceCanvasResize();
+      forceChartRedraw();
+    }
     layoutChangeTimeout = null;
-  }, 300);
+  }, 220);
 });
 
 // Fullscreen değişikliklerini özel olarak ele al

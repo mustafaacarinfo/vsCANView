@@ -2,12 +2,14 @@
 #pragma once
 
 #include "bus/can_channel.hpp"
+#ifdef __linux__
 #include <linux/can.h>
 #include <linux/can/raw.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#endif
 #include <cstring>
 #include <functional>
 #include <absl/base/no_destructor.h>  
@@ -31,7 +33,7 @@ class SocketCanChannel final: public ICanChannel {
     private:
         friend class absl::NoDestructor<SocketCanChannel>;
         SocketCanChannel()  = default;
-        int fd_ = -1;
+    int fd_ = -1; // yalnızca Linux'ta anlamlı
     };
 }
 

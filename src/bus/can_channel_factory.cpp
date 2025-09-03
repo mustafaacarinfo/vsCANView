@@ -13,8 +13,12 @@ namespace canmqtt::bus {
 
 ICanChannel* ICanChannel::create(std::string_view backend) {
     if (backend == "socketcan" || backend == "virtual" || backend == "vcan") {
-        // SocketCanChannel singleton döndürülüyor
-        return &SocketCanChannel::getInstance();
+#ifdef __linux__
+    return &SocketCanChannel::getInstance();
+#else
+    std::cerr << "[ICanChannel::create] SocketCAN sadece Linux'ta desteklenir.\n";
+    return nullptr;
+#endif
     }
 #ifdef USE_PCAN
     if (backend == "pcan") {

@@ -12,7 +12,13 @@ namespace canmqtt::task {
 void Init() {
 
   auto& cfg = canmqtt::config::ConfigLoader::getInstance();
-  cfg.Load("../conf/config.ini");
+  std::cout << "[Init] Starting init..." << std::endl;
+  // Config arama: çalışma dizini kök (./conf), build/Release içinde çalışırken ../conf fallback
+  if(!cfg.Load("conf/config.ini")) {
+    if(!cfg.Load("../conf/config.ini")) {
+      std::cerr << "[Init] Config bulunamadı (conf/config.ini veya ../conf/config.ini)" << std::endl;
+    }
+  }
 
   auto& db = canmqtt::dbc::DbcDatabase::getInstance();
   db.load(cfg.Get("dbc", "file", ""));
@@ -26,8 +32,17 @@ void Init() {
   }
 
   auto& mqtt_pub = canmqtt::mqtt::Publisher::getInstance();
-  mqtt_pub.Init(cfg.Get("mqtt", "uri", ""),
-                cfg.Get("mqtt", "client_id", ""),
-                std::stoi(cfg.Get("mqtt", "keep_alive", ""),nullptr,16));
+  auto uri = cfg.Get("mqtt","uri","");
+  auto cid = cfg.Get("mqtt","client_id","");
+  auto keepStr = cfg.Get("mqtt","keep_alive","60");
+  int keepAlive = 60;
+  try {
+    // Önce decimal dene; hex ise 0x veya sadece harf içeriyorsa fallback
+    keepAlive = std::stoi(keepStr, nullptr, 10);
+  } catch(...) {
+    try { keepAlive = std::stoi(keepStr, nullptr, 16); } catch(...) { keepAlive = 60; }
+  }
+  std::cout << "[Init] MQTT uri=" << uri << " client_id=" << cid << " keep=" << keepAlive << std::endl;
+  mqtt_pub.Init(uri, cid, keepAlive);
 }
 } 

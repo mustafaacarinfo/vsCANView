@@ -80,6 +80,8 @@ endif()
 target_include_directories(vsCANView PRIVATE
   ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_SOURCE_DIR}/third_party/paho-mqtt-c/src
+  # Abseil public headers (bazı ortamda alt dizin otomatik eklenmeyebilir)
+  ${CMAKE_SOURCE_DIR}/third_party/abseil
 )
 
 # Linkler

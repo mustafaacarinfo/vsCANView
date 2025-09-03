@@ -35,6 +35,7 @@ namespace canmqtt::task
       std::cerr << "[Listener] CAN backend bulunamadı: " << backend << "\n";
       return; 
     }
+  std::cout << "[Listener] Backend: " << backend << " kanal: " << cl.Get("can","channel","") << " bekleniyor..." << std::endl;
     auto &mqtt_pub = mqtt::Publisher::getInstance();
 
     std::jthread{
@@ -42,8 +43,13 @@ namespace canmqtt::task
           Frame frame;
           json j_canFrame;
 
+          bool firstFrameLogged=false;
           while (ch->read(frame))
           {
+            if(!firstFrameLogged){
+              std::cout << "[Listener] İlk frame alındı (id=0x" << std::hex << frame.id << std::dec << ")" << std::endl;
+              firstFrameLogged=true;
+            }
             /* 
             
               FRAME

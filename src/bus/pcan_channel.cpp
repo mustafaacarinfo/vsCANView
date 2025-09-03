@@ -1,15 +1,10 @@
-// PCAN hata kodunu string'e çeviren yardımcı
-static const char* pcanStatusToStr(PcanStatus st) {
-    switch(st) {
-        case PCAN_ERROR_OK: return "OK";
-        default: return "Bilinmeyen hata";
-    }
-}
 // src/bus/pcan_channel.cpp
 #include "bus/pcan_channel.hpp"
+#include <array>
 #include "config/config_loader.hpp"
 #include <iostream>
 #include <regex>
+#include <string>
 #include <thread>
 #include <chrono>
 #if defined(_WIN32)
@@ -19,6 +14,14 @@ static const char* pcanStatusToStr(PcanStatus st) {
 #endif
 
 namespace canmqtt::bus {
+
+// PCAN hata kodunu string'e çeviren yardımcı (şimdilik minimal)
+static const char* pcanStatusToStr(PcanStatus st) {
+    switch(st) {
+        case PCAN_ERROR_OK: return "OK";
+        default: return "Bilinmeyen hata";
+    }
+}
 
 // Bitrate map (PCANBasic baudrate çarpanı). Basit standart değerler.
 static uint16_t mapBitrate(const std::string& br) {
@@ -76,17 +79,20 @@ bool PcanChannel::loadLibrary() {
 }
 
 bool PcanChannel::parseChannel(std::string_view ifname, PcanHandle &outHandle) {
-    // Beklenen format ör: PCAN_USBBUS1 -> USBBUS1 içindeki rakam kanalı belirler
-    std::regex usbRe("PCAN_USBBUS([0-9]+)");
-    std::cmatch m;
-    if(std::regex_match(ifname.begin(), ifname.end(), m, usbRe) && m.size()==2) {
-        int idx = std::stoi(m[1]);
-        // PCANBasic: 0x51 + (index-1) gibi (örnek) — gerçek handle sabitleri PCANBasic.h içinde
-        // Örnek: PCAN_USBBUS1 = 0x51, PCAN_USBBUS2 = 0x52 ...
-        outHandle = static_cast<PcanHandle>(0x50 + idx);
+    // Format: PCAN_USBBUS<N>
+    static const std::regex usbRe("^PCAN_USBBUS([0-9]+)$", std::regex::ECMAScript);
+    std::string tmp(ifname);
+    std::smatch m;
+    if(std::regex_match(tmp, m, usbRe) && m.size()==2) {
+        int idx = std::stoi(m[1].str());
+        if(idx <= 0 || idx > 16) { // makul üst limit
+            std::cerr << "[PcanChannel] Geçersiz kanal index: " << idx << '\n';
+            return false;
+        }
+        outHandle = static_cast<PcanHandle>(0x50 + idx); // PCAN_USBBUS1 = 0x51
         return true;
     }
-    std::cerr << "[PcanChannel] Kanal formatı tanınmadı: " << ifname << '\n';
+    std::cerr << "[PcanChannel] Kanal formatı tanınmadı: " << tmp << '\n';
     return false;
 }
 
@@ -104,7 +110,7 @@ bool PcanChannel::open(std::string_view ifname, bool /*fd_mode*/) {
         return false;
     }
     opened_ = true;
-    std::cout << "[PcanChannel] Açıldı: " << ifname << " (bitrate: " << bitrateStr << ")\n";
+    std::cout << "[PcanChannel] Açıldı: kanal=" << ifname << " bitrate=" << bitrateStr << std::endl;
     return true;
 }
 

@@ -28,6 +28,9 @@ class ICanChannel {
         virtual bool read(Frame& out) = 0;
         virtual void close() = 0;
 
+    // Factory: yapılandırma ile dinamik backend seçimi
+    static ICanChannel* create(std::string_view backend);
+
         // non-copyable
         ICanChannel(const ICanChannel&)            = delete;
         ICanChannel& operator=(const ICanChannel&) = delete;

@@ -1,6 +1,6 @@
 #include "task/listener_task.hpp"
 #include "dbc/dbc_database.hpp"
-#include "bus/socket_can_channel.hpp"
+#include "bus/can_channel.hpp"
 #include "mqtt/mqtt_publisher.hpp"
 #include "config/config_loader.hpp"
 #include "util/util.hpp"
@@ -29,7 +29,12 @@ namespace canmqtt::task
   {
     auto &cl = cfg::ConfigLoader::getInstance();
     auto &db = dbc::DbcDatabase::getInstance();
-    auto &ch = bus::SocketCanChannel::getInstance();
+    auto backend = cl.Get("can","backend","socketcan");
+    auto *ch = bus::ICanChannel::create(backend);
+    if(!ch){
+      std::cerr << "[Listener] CAN backend bulunamadı: " << backend << "\n";
+      return; 
+    }
     auto &mqtt_pub = mqtt::Publisher::getInstance();
 
     std::jthread{
@@ -37,7 +42,7 @@ namespace canmqtt::task
           Frame frame;
           json j_canFrame;
 
-          while (ch.read(frame))
+          while (ch->read(frame))
           {
             /* 
             
@@ -55,8 +60,8 @@ namespace canmqtt::task
               continue;
             }
             
-            std::string bus = cl.Get("can", "channel", "");
-            std::string topic = fmt::format("can/{}/{:06X}", bus, frame.id);
+            std::string busName = cl.Get("can", "channel", "");
+            std::string topic = fmt::format("can/{}/{:06X}", busName, frame.id);
 
             mqtt_pub.Publish(topic, j_canFrame.dump(2), 1/*td::stoi(cl.Get("mqtt", "qos", ""),nullptr, 16)*/);
           }

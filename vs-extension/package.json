@@ -2,7 +2,7 @@
   "name": "can-debugger-modular",
   "displayName": "CAN Debugger: vsCANView (J1939)",
   "description": "Moduler webview: Speed, RPM, GPS, Fuel/Pressure/FuelRate, Temperature charts + gauges, 3D Vehicle, Live Feed (pretty JSON), status & filters.",
-  "version": "0.9.6",
+  "version": "0.9.9",
   "icon": "images/icon.png",
   "publisher": "mustafa-acar",
   "engines": {
